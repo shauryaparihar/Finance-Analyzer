@@ -1,32 +1,32 @@
-# 💰 Personal Finance Analyzer & Expense Predictor
+# Personal Finance Analyzer and Expense Predictor
 
-A production-quality, full-stack ML application that analyzes financial transaction data and provides automated insights including expense categorization, spending predictions, anomaly detection, and user segmentation.
+A production-quality, full-stack machine learning application that analyzes financial transaction data. It provides automated insights including expense categorization, spending predictions, anomaly detection, and user segmentation through a modern React dashboard.
 
-## ✨ Features
+## Features
 
 | Feature | Description | Model |
 |---------|-------------|-------|
-| 🏷️ **Expense Categorization** | Automatically classifies transactions into categories | Logistic Regression, Random Forest, XGBoost |
-| 🔮 **Spending Predictions** | Forecasts next 30 days of spending | Linear Regression, Random Forest, ARIMA |
-| 🚨 **Anomaly Detection** | Flags unusual/suspicious transactions | Isolation Forest |
-| 👥 **Spending Segmentation** | Groups monthly spending patterns | K-Means Clustering |
-| ⚡ **High Performance** | Concurrency control efficiently processes 50,000+ row datasets in seconds | ThreadPoolExecutor |
-| 🎨 **Strict UI System** | Premium Emerald/Slate design adhering to a strict 8-point grid | Custom CSS / Streamlit |
+| Expense Categorization | Automatically classifies transactions into categories | Logistic Regression, Random Forest, XGBoost |
+| Spending Predictions | Forecasts next 30 days of spending | Linear Regression, Random Forest, ARIMA |
+| Anomaly Detection | Flags unusual or suspicious transactions | Isolation Forest |
+| Spending Segmentation | Groups monthly spending patterns | K-Means Clustering |
+| High Performance | Concurrency control processes 50,000+ row datasets in seconds | ThreadPoolExecutor |
+| Premium UI System | Modern Emerald/Slate design using a strict 8-point grid | React / Tailwind CSS |
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────┐     ┌──────────────────────────────┐
-│    Streamlit Frontend       │────▶│    FastAPI Backend            │
-│    (Port 8501)              │     │    (Port 8000)               │
+│       React Frontend        │────▶│       FastAPI Backend        │
+│       (Vite / Port 5173)    │     │       (Port 8000)            │
 │                             │     │                              │
 │  ┌──────────────────────┐   │     │  ┌────────────────────────┐  │
 │  │ Dashboard Pages      │   │     │  │ ML Pipeline            │  │
-│  │ • Overview           │   │     │  │ • Preprocessing        │  │
-│  │ • Predictions        │   │     │  │ • Categorization       │  │
-│  │ • Anomalies          │   │     │  │ • Prediction           │  │
-│  │ • Segmentation       │   │     │  │ • Anomaly Detection    │  │
-│  └──────────────────────┘   │     │  │ • Segmentation         │  │
+│  │ - Overview           │   │     │  │ - Preprocessing        │  │
+│  │ - Predictions        │   │     │  │ - Categorization       │  │
+│  │ - Anomalies          │   │     │  │ - Prediction           │  │
+│  │ - Segmentation       │   │     │  │ - Anomaly Detection    │  │
+│  └──────────────────────┘   │     │  │ - Segmentation         │  │
 └─────────────────────────────┘     │  └────────────────────────┘  │
                                     │                              │
                                     │  ┌────────────────────────┐  │
@@ -35,83 +35,73 @@ A production-quality, full-stack ML application that analyzes financial transact
                                     └──────────────────────────────┘
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Install Dependencies
 
+Install Python dependencies for the backend:
 ```bash
 pip install -r requirements.txt
 ```
 
+Install Node.js dependencies for the frontend:
+```bash
+npm install
+```
+
 ### 2. Generate Sample Data
 
+Create a baseline dataset for testing:
 ```bash
 python scripts/generate_sample_data.py
 ```
 
-### 3. Launch Both Servers
+### 3. Launch the Application
 
+Start the backend server:
 ```bash
-python run.py
+python -m uvicorn backend.main:app --reload --port 8000
 ```
 
-This starts:
-- **FastAPI API** at `http://127.0.0.1:8000` (docs at `/docs`)
-- **Streamlit Dashboard** at `http://localhost:8501`
-
-### Alternative: Start Separately
-
+In a separate terminal, start the React frontend:
 ```bash
-# Terminal 1: Backend
-uvicorn backend.main:app --reload --port 8000
-
-# Terminal 2: Frontend
-streamlit run frontend/app.py --theme.base dark
+npm run dev
 ```
 
-## 📁 CSV Format
+The application will be available at:
+- **Dashboard**: http://localhost:5173
+- **API Documentation**: http://127.0.0.1:8000/docs
 
-Your CSV file should contain these columns:
+## CSV Format
+
+Uploaded files should follow this structure:
 
 | Column | Required | Description |
 |--------|----------|-------------|
-| `date` | ✅ | Transaction date (any parseable format) |
-| `amount` | ✅ | Transaction amount (positive=expense, negative=income) |
-| `category` | Optional | Transaction category (for supervised learning) |
-| `description` | Optional | Transaction description (for NLP categorization) |
+| `date` | Yes | Transaction date (Y-M-D format preferred) |
+| `amount` | Yes | Transaction amount (positive for expenses) |
+| `category` | Optional | Known category for training |
+| `description` | Optional | Transaction details for NLP processing |
 
-## 🔧 API Endpoints
+## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/upload` | Upload CSV and trigger ML pipeline |
-| GET | `/api/uploads` | List all uploads |
-| GET | `/api/status/{id}` | Check pipeline processing status |
-| GET | `/api/results/{id}/{type}` | Get results (summary, categorization, prediction, anomaly, segmentation) |
-| GET | `/api/transactions/{id}` | Get processed transactions |
+| POST | /api/upload | Upload CSV and trigger ML pipeline |
+| GET | /api/status/{id} | Check pipeline processing status |
+| GET | /api/results/{id}/{type} | Retrieve specific ML results |
+| GET | /api/transactions/{id} | List all processed transactions |
 
-## 📂 Project Structure
+## Project Structure
 
-```
-├── backend/
-│   ├── api/          # FastAPI routes & schemas
-│   ├── core/         # Config & database
-│   ├── ml/           # ML pipeline modules
-│   ├── models/       # Saved .pkl model files
-│   └── utils/        # Helper functions
-├── frontend/
-│   ├── app.py        # Streamlit main app
-│   ├── pages/        # Dashboard pages
-│   └── components/   # Reusable chart & sidebar components
-├── data/             # Sample data & uploads
-├── scripts/          # Data generation scripts
-├── run.py            # Launch script
-└── requirements.txt  # Dependencies
-```
+- **src/**: React frontend source code (components, hooks, pages).
+- **backend/**: FastAPI application, ML modules, and data models.
+- **data/**: Local storage for uploads and sample datasets.
+- **scripts/**: Utility scripts for data generation and testing.
 
-## 🧪 Tech Stack
+## Tech Stack
 
+- **Frontend**: React 18, Vite, Tailwind CSS, Recharts
 - **Backend**: FastAPI, SQLAlchemy, SQLite
-- **Frontend**: Streamlit, Plotly
-- **ML**: scikit-learn, XGBoost, statsmodels
-- **Data**: pandas, NumPy
+- **ML**: Scikit-Learn, XGBoost, Statsmodels
+- **Data**: Pandas, NumPy
