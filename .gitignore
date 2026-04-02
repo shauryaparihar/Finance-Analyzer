@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Node.js
+node_modules/
+.npm
+package-lock.json
+dist-ssr
+*.local
+
+# SQLite Database
+*.db
+*.sqlite3
+finance_analyzer.db
+
+# Project Data
+data/uploads/
+data/large_transactions.csv
+data/large_transactions_balanced.csv
+
+# Logs & Temporary
+*.log
+api_test.txt
+cat_error.txt
+test_out.txt
+*.zip
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.flaskenv
+
+# IDEs
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+node_modules

@@ -1,0 +1,1201 @@
+date,amount,category,description
+2025-04-07,53.91,Dining,Domino's pizza order
+2025-04-07,199.39,Shopping,Apple Store accessory
+2025-04-07,118.27,Groceries,Costco bulk buy
+2025-04-08,43.34,Transportation,Car wash service
+2025-04-08,35.56,Dining,McDonald's meal
+2025-04-09,-2892.84,Salary,Monthly salary deposit
+2025-04-09,322.42,Subscriptions,UNUSUAL: Spotify premium
+2025-04-09,185.26,Utilities,Gas company payment
+2025-04-10,989.26,Rent,Housing lease payment
+2025-04-10,164.71,Groceries,Safeway essentials
+2025-04-10,48.74,Dining,Thai food takeout
+2025-04-10,135.78,Groceries,Fresh produce market
+2025-04-11,83.66,Groceries,Aldi supermarket
+2025-04-11,51.02,Transportation,Uber ride
+2025-04-11,56.01,Dining,Panda Express
+2025-04-11,19.32,Transportation,Toll road charge
+2025-04-11,87.99,Shopping,Nike online purchase
+2025-04-12,123.78,Shopping,Nike online purchase
+2025-04-12,216.37,Shopping,IKEA furniture
+2025-04-13,203.42,Groceries,Costco bulk buy
+2025-04-13,97.5,Groceries,Trader Joe's groceries
+2025-04-13,109.89,Transportation,Parking garage fee
+2025-04-14,59.81,Entertainment,Theme park tickets
+2025-04-14,103.78,Utilities,Electricity monthly charge
+2025-04-14,41.31,Transportation,Parking garage fee
+2025-04-14,110.8,Shopping,Nike online purchase
+2025-04-14,192.92,Shopping,Apple Store accessory
+2025-04-15,19.04,Subscriptions,Gym membership fee
+2025-04-15,131.28,Shopping,Apple Store accessory
+2025-04-15,251.7,Healthcare,Urgent care visit
+2025-04-16,58.6,Entertainment,Comedy show tickets
+2025-04-16,40.54,Transportation,Oil change service
+2025-04-17,52.33,Transportation,Toll road charge
+2025-04-17,56.18,Entertainment,Museum admission
+2025-04-17,17.94,Subscriptions,Netflix monthly subscription
+2025-04-18,167.1,Healthcare,Pharmacy prescription
+2025-04-18,135.17,Groceries,Kroger weekly shopping
+2025-04-19,91.33,Transportation,Bus pass monthly
+2025-04-20,152.39,Groceries,Whole Foods Market
+2025-04-20,41.92,Subscriptions,YouTube Premium
+2025-04-21,179.21,Groceries,Local farmer's market
+2025-04-21,20.11,Dining,Sushi restaurant
+2025-04-21,75.11,Transportation,Subway fare
+2025-04-21,74.49,Dining,Chipotle lunch
+2025-04-21,166.35,Groceries,Whole Foods Market
+2025-04-21,55.92,Dining,Burger King drive-thru
+2025-04-22,169.84,Entertainment,Bowling alley
+2025-04-22,125.41,Groceries,Costco bulk buy
+2025-04-22,33.99,Dining,Domino's pizza order
+2025-04-23,62.78,Groceries,Fresh produce market
+2025-04-23,40.6,Dining,Taco Bell late night
+2025-04-23,286.53,Healthcare,Lab work fees
+2025-04-24,324.44,Shopping,Nike online purchase
+2025-04-24,20.23,Subscriptions,Hulu streaming service
+2025-04-25,331.08,Healthcare,Dental checkup
+2025-04-25,78.89,Entertainment,Escape room experience
+2025-04-25,135.14,Shopping,Zara clothing
+2025-04-25,61.05,Transportation,Parking garage fee
+2025-04-25,123.71,Shopping,Target household items
+2025-04-25,82.26,Shopping,Zara clothing
+2025-04-25,222.13,Shopping,Etsy handmade item
+2025-04-26,130.88,Groceries,Aldi supermarket
+2025-04-26,53.74,Dining,Chipotle lunch
+2025-04-27,51.42,Subscriptions,iCloud storage plan
+2025-04-27,16.76,Subscriptions,Microsoft 365 subscription
+2025-04-27,168.65,Shopping,Amazon order
+2025-04-29,114.16,Utilities,Electricity monthly charge
+2025-04-29,108.29,Entertainment,Video game purchase
+2025-04-29,40.56,Subscriptions,Disney+ subscription
+2025-04-29,46.67,Dining,Thai food takeout
+2025-04-29,33.82,Dining,Taco Bell late night
+2025-04-30,118.83,Groceries,Costco bulk buy
+2025-04-30,116.29,Groceries,Fresh produce market
+2025-04-30,32.73,Dining,McDonald's meal
+2025-04-30,53.52,Dining,Pizza Hut delivery
+2025-04-30,89.04,Groceries,Kroger weekly shopping
+2025-04-30,39.19,Transportation,Subway fare
+2025-05-01,37.55,Dining,McDonald's meal
+2025-05-02,121.81,Dining,Domino's pizza order
+2025-05-02,97.65,Groceries,Aldi supermarket
+2025-05-02,32.6,Transportation,Train ticket
+2025-05-03,23.67,Dining,Chipotle lunch
+2025-05-03,186.96,Entertainment,Streaming movie rental
+2025-05-03,79.87,Transportation,Subway fare
+2025-05-03,93.2,Entertainment,Escape room experience
+2025-05-03,94.17,Shopping,Zara clothing
+2025-05-03,42.75,Transportation,Parking garage fee
+2025-05-04,44.59,Transportation,Car wash service
+2025-05-04,24.81,Subscriptions,Adobe Creative Cloud
+2025-05-05,347.07,Healthcare,Doctor visit copay
+2025-05-05,53.66,Entertainment,Bowling alley
+2025-05-06,48.33,Dining,Pizza Hut delivery
+2025-05-06,97.7,Groceries,Kroger weekly shopping
+2025-05-06,108.37,Shopping,Apple Store accessory
+2025-05-06,41.29,Dining,McDonald's meal
+2025-05-07,167.29,Groceries,Fresh produce market
+2025-05-07,85.56,Shopping,Nike online purchase
+2025-05-07,77.56,Transportation,Gas station fill-up
+2025-05-07,59.01,Dining,Panda Express
+2025-05-07,18.25,Subscriptions,iCloud storage plan
+2025-05-07,202.61,Shopping,Target household items
+2025-05-08,185.85,Groceries,Target grocery run
+2025-05-08,130.32,Healthcare,Dental checkup
+2025-05-08,53.11,Groceries,Fresh produce market
+2025-05-09,46.2,Dining,Sushi restaurant
+2025-05-09,127.12,Utilities,Gas company payment
+2025-05-10,69.28,Utilities,Gas company payment
+2025-05-10,82.86,Dining,Local cafe breakfast
+2025-05-10,2059.14,Rent,Monthly apartment rent
+2025-05-11,57.1,Dining,McDonald's meal
+2025-05-11,53.54,Entertainment,Concert admission
+2025-05-11,112.62,Healthcare,Pharmacy prescription
+2025-05-12,-3687.69,Salary,Monthly salary deposit
+2025-05-12,57.41,Dining,Olive Garden dinner
+2025-05-13,45.52,Dining,Local cafe breakfast
+2025-05-13,116.31,Groceries,Walmart grocery purchase
+2025-05-13,33.53,Subscriptions,Disney+ subscription
+2025-05-14,23.81,Dining,Chipotle lunch
+2025-05-15,64.19,Dining,Burger King drive-thru
+2025-05-15,87.48,Shopping,Best Buy electronics
+2025-05-15,202.04,Groceries,Aldi supermarket
+2025-05-16,81.33,Transportation,Subway fare
+2025-05-16,29.56,Dining,Domino's pizza order
+2025-05-16,74.14,Entertainment,Arcade gaming
+2025-05-16,56.57,Transportation,Parking garage fee
+2025-05-16,232.15,Healthcare,Dental checkup
+2025-05-17,24.21,Dining,Sushi restaurant
+2025-05-17,285.94,Groceries,Kroger weekly shopping
+2025-05-17,44.86,Transportation,Toll road charge
+2025-05-18,119.75,Shopping,Best Buy electronics
+2025-05-18,35.08,Transportation,Toll road charge
+2025-05-18,114.66,Shopping,Best Buy electronics
+2025-05-19,49.0,Entertainment,Museum admission
+2025-05-19,26.87,Dining,Olive Garden dinner
+2025-05-19,129.9,Groceries,Fresh produce market
+2025-05-19,103.57,Entertainment,Comedy show tickets
+2025-05-19,97.53,Dining,Sushi restaurant
+2025-05-20,37.23,Subscriptions,Netflix monthly subscription
+2025-05-20,47.56,Transportation,Lyft trip
+2025-05-20,46.92,Transportation,Subway fare
+2025-05-21,37.32,Dining,Local cafe breakfast
+2025-05-21,154.34,Utilities,Gas company payment
+2025-05-21,25.12,Entertainment,Concert admission
+2025-05-21,45.9,Transportation,Toll road charge
+2025-05-21,45.63,Dining,Thai food takeout
+2025-05-22,43.84,Dining,Thai food takeout
+2025-05-22,103.45,Groceries,Local farmer's market
+2025-05-23,46.85,Dining,Thai food takeout
+2025-05-23,213.93,Healthcare,Doctor visit copay
+2025-05-23,49.24,Groceries,Costco bulk buy
+2025-05-23,46.08,Transportation,Bus pass monthly
+2025-05-23,250.16,Utilities,Phone bill
+2025-05-24,103.74,Groceries,Fresh produce market
+2025-05-24,48.42,Transportation,Bus pass monthly
+2025-05-24,109.52,Groceries,Fresh produce market
+2025-05-25,137.05,Shopping,Apple Store accessory
+2025-05-25,66.54,Entertainment,Concert admission
+2025-05-26,528.53,Healthcare,Walgreens prescription
+2025-05-27,224.96,Shopping,Amazon order
+2025-05-27,107.35,Groceries,Aldi supermarket
+2025-05-27,90.58,Groceries,Target grocery run
+2025-05-28,75.65,Dining,Local cafe breakfast
+2025-05-28,115.75,Groceries,Fresh produce market
+2025-05-28,178.8,Shopping,Nike online purchase
+2025-05-29,26.92,Transportation,Toll road charge
+2025-05-29,2467.68,Healthcare,UNUSUAL: Doctor visit copay
+2025-05-29,144.11,Groceries,Kroger weekly shopping
+2025-05-30,113.79,Healthcare,Lab work fees
+2025-05-31,84.84,Entertainment,Concert admission
+2025-05-31,34.77,Dining,Chipotle lunch
+2025-05-31,82.08,Transportation,Gas station fill-up
+2025-05-31,278.57,Shopping,IKEA furniture
+2025-06-01,155.57,Groceries,Fresh produce market
+2025-06-01,28.65,Dining,Sushi restaurant
+2025-06-01,48.38,Dining,Pizza Hut delivery
+2025-06-01,45.14,Dining,Domino's pizza order
+2025-06-03,112.38,Groceries,Kroger weekly shopping
+2025-06-04,238.63,Shopping,IKEA furniture
+2025-06-04,159.24,Shopping,Nike online purchase
+2025-06-04,389.17,Healthcare,Pharmacy prescription
+2025-06-04,39.9,Dining,McDonald's meal
+2025-06-05,123.58,Shopping,Nordstrom apparel
+2025-06-05,151.86,Healthcare,Pharmacy prescription
+2025-06-05,36.65,Transportation,Gas station fill-up
+2025-06-05,58.83,Dining,Thai food takeout
+2025-06-06,16.48,Subscriptions,Amazon Prime renewal
+2025-06-07,32.22,Transportation,Bus pass monthly
+2025-06-07,33.79,Subscriptions,iCloud storage plan
+2025-06-07,41.87,Dining,Thai food takeout
+2025-06-07,1171.68,Rent,Monthly apartment rent
+2025-06-08,47.75,Entertainment,Bowling alley
+2025-06-08,55.26,Dining,Burger King drive-thru
+2025-06-08,57.85,Dining,McDonald's meal
+2025-06-08,66.82,Entertainment,Comedy show tickets
+2025-06-08,32.2,Transportation,Parking garage fee
+2025-06-09,31.19,Dining,Sushi restaurant
+2025-06-09,322.79,Utilities,Comcast internet
+2025-06-09,45.0,Transportation,Oil change service
+2025-06-09,174.05,Shopping,IKEA furniture
+2025-06-09,195.94,Groceries,Trader Joe's groceries
+2025-06-09,66.28,Shopping,Etsy handmade item
+2025-06-10,137.93,Shopping,Best Buy electronics
+2025-06-10,172.3,Groceries,Fresh produce market
+2025-06-10,203.32,Groceries,Whole Foods Market
+2025-06-11,43.52,Dining,Local cafe breakfast
+2025-06-11,-2795.35,Salary,Salary payment
+2025-06-11,49.22,Transportation,Uber ride
+2025-06-12,42.07,Entertainment,Escape room experience
+2025-06-12,127.22,Shopping,Target household items
+2025-06-12,40.45,Transportation,Subway fare
+2025-06-13,54.46,Transportation,Parking garage fee
+2025-06-13,34.54,Dining,Sushi restaurant
+2025-06-13,189.29,Entertainment,Arcade gaming
+2025-06-13,153.71,Shopping,IKEA furniture
+2025-06-14,54.18,Transportation,Gas station fill-up
+2025-06-15,203.61,Shopping,Nike online purchase
+2025-06-15,66.97,Entertainment,Concert admission
+2025-06-16,103.42,Groceries,Kroger weekly shopping
+2025-06-16,54.88,Subscriptions,iCloud storage plan
+2025-06-16,64.78,Dining,Chipotle lunch
+2025-06-16,141.04,Utilities,Electric bill payment
+2025-06-16,52.8,Dining,Local cafe breakfast
+2025-06-16,23.13,Subscriptions,YouTube Premium
+2025-06-16,125.19,Entertainment,Streaming movie rental
+2025-06-17,40.05,Transportation,Car wash service
+2025-06-17,78.55,Entertainment,Streaming movie rental
+2025-06-18,81.26,Groceries,Walmart grocery purchase
+2025-06-18,46.02,Dining,Chipotle lunch
+2025-06-19,34.03,Dining,Burger King drive-thru
+2025-06-20,23.01,Dining,Starbucks coffee
+2025-06-20,41.94,Dining,McDonald's meal
+2025-06-21,60.33,Transportation,Bus pass monthly
+2025-06-22,14.15,Subscriptions,Adobe Creative Cloud
+2025-06-22,232.39,Utilities,Phone bill
+2025-06-22,40.68,Transportation,Parking garage fee
+2025-06-22,251.14,Shopping,Home Depot supplies
+2025-06-22,35.31,Transportation,Gas station fill-up
+2025-06-23,112.78,Dining,McDonald's meal
+2025-06-23,209.34,Shopping,Amazon order
+2025-06-23,136.15,Groceries,Walmart grocery purchase
+2025-06-24,46.28,Transportation,Car wash service
+2025-06-24,41.95,Dining,Domino's pizza order
+2025-06-24,89.23,Groceries,Trader Joe's groceries
+2025-06-24,167.1,Healthcare,Walgreens prescription
+2025-06-24,17.64,Dining,Thai food takeout
+2025-06-25,159.58,Healthcare,Eye exam appointment
+2025-06-25,117.22,Entertainment,Comedy show tickets
+2025-06-25,26.69,Subscriptions,Gym membership fee
+2025-06-25,173.05,Utilities,Water utility bill
+2025-06-26,103.79,Shopping,Nike online purchase
+2025-06-26,42.77,Dining,Olive Garden dinner
+2025-06-26,216.68,Groceries,Target grocery run
+2025-06-26,34.77,Dining,Burger King drive-thru
+2025-06-26,179.12,Shopping,Amazon order
+2025-06-26,38.9,Dining,Sushi restaurant
+2025-06-26,113.23,Utilities,Electric bill payment
+2025-06-27,56.48,Dining,Sushi restaurant
+2025-06-27,36.96,Dining,Olive Garden dinner
+2025-06-27,20.26,Subscriptions,Adobe Creative Cloud
+2025-06-27,158.74,Shopping,Zara clothing
+2025-06-27,113.84,Dining,Taco Bell late night
+2025-06-27,33.54,Dining,Olive Garden dinner
+2025-06-28,42.59,Dining,Taco Bell late night
+2025-06-28,246.57,Groceries,Aldi supermarket
+2025-06-28,151.01,Groceries,Kroger weekly shopping
+2025-06-28,43.2,Transportation,Bus pass monthly
+2025-06-29,54.5,Dining,Taco Bell late night
+2025-06-29,158.08,Groceries,Target grocery run
+2025-06-30,60.25,Dining,Olive Garden dinner
+2025-06-30,116.37,Utilities,Electricity monthly charge
+2025-06-30,40.12,Dining,Starbucks coffee
+2025-06-30,84.56,Groceries,Aldi supermarket
+2025-07-01,37.56,Dining,Thai food takeout
+2025-07-01,42.86,Transportation,Parking garage fee
+2025-07-01,26.01,Dining,Sushi restaurant
+2025-07-02,117.53,Shopping,Nordstrom apparel
+2025-07-02,34.94,Dining,Starbucks coffee
+2025-07-04,24.19,Subscriptions,YouTube Premium
+2025-07-05,81.14,Groceries,Fresh produce market
+2025-07-05,112.59,Groceries,Aldi supermarket
+2025-07-05,77.65,Entertainment,Museum admission
+2025-07-05,73.45,Entertainment,Concert admission
+2025-07-06,37.13,Entertainment,Escape room experience
+2025-07-06,134.65,Groceries,Target grocery run
+2025-07-07,24.26,Dining,Panda Express
+2025-07-07,106.37,Groceries,Kroger weekly shopping
+2025-07-07,1563.66,Rent,Housing lease payment
+2025-07-07,269.63,Groceries,Safeway essentials
+2025-07-07,37.18,Dining,Olive Garden dinner
+2025-07-07,-5035.23,Salary,Paycheck direct deposit
+2025-07-08,152.53,Shopping,Apple Store accessory
+2025-07-08,73.76,Entertainment,Museum admission
+2025-07-08,86.14,Groceries,Aldi supermarket
+2025-07-08,1657.63,Groceries,UNUSUAL: Trader Joe's groceries
+2025-07-08,74.94,Transportation,Gas station fill-up
+2025-07-09,22.3,Dining,Burger King drive-thru
+2025-07-09,27.65,Subscriptions,Amazon Prime renewal
+2025-07-10,63.01,Groceries,Trader Joe's groceries
+2025-07-10,42.45,Transportation,Train ticket
+2025-07-11,93.64,Entertainment,Escape room experience
+2025-07-11,522.87,Healthcare,Lab work fees
+2025-07-11,1276.56,Shopping,UNUSUAL: Zara clothing
+2025-07-12,28.42,Dining,Taco Bell late night
+2025-07-12,116.59,Groceries,Local farmer's market
+2025-07-12,37.97,Dining,Taco Bell late night
+2025-07-13,161.3,Shopping,IKEA furniture
+2025-07-13,68.58,Entertainment,Arcade gaming
+2025-07-13,100.72,Shopping,Nike online purchase
+2025-07-13,52.94,Transportation,Subway fare
+2025-07-14,62.71,Dining,Chipotle lunch
+2025-07-14,163.88,Healthcare,Eye exam appointment
+2025-07-15,116.94,Shopping,Zara clothing
+2025-07-16,387.63,Healthcare,Health insurance copay
+2025-07-16,153.11,Utilities,Electricity monthly charge
+2025-07-16,41.95,Dining,Domino's pizza order
+2025-07-16,97.48,Dining,Burger King drive-thru
+2025-07-17,275.95,Utilities,Comcast internet
+2025-07-17,47.86,Dining,Starbucks coffee
+2025-07-17,36.08,Transportation,Lyft trip
+2025-07-18,96.39,Groceries,Trader Joe's groceries
+2025-07-18,318.56,Shopping,Target household items
+2025-07-19,45.67,Transportation,Gas station fill-up
+2025-07-20,368.35,Groceries,Aldi supermarket
+2025-07-20,137.23,Groceries,Aldi supermarket
+2025-07-20,33.83,Dining,Sushi restaurant
+2025-07-20,44.01,Dining,Domino's pizza order
+2025-07-21,88.79,Entertainment,Movie theater tickets
+2025-07-21,64.58,Entertainment,Streaming movie rental
+2025-07-21,33.12,Dining,Local cafe breakfast
+2025-07-21,162.64,Shopping,Nike online purchase
+2025-07-21,120.08,Groceries,Fresh produce market
+2025-07-22,233.95,Shopping,Apple Store accessory
+2025-07-22,190.41,Shopping,Target household items
+2025-07-22,97.17,Groceries,Costco bulk buy
+2025-07-23,73.81,Dining,Taco Bell late night
+2025-07-23,90.38,Dining,Domino's pizza order
+2025-07-24,78.16,Dining,Domino's pizza order
+2025-07-24,23.19,Dining,Burger King drive-thru
+2025-07-24,139.29,Groceries,Local farmer's market
+2025-07-24,220.49,Groceries,Costco bulk buy
+2025-07-24,52.22,Transportation,Train ticket
+2025-07-25,72.97,Transportation,Subway fare
+2025-07-25,228.28,Healthcare,Health insurance copay
+2025-07-25,111.75,Entertainment,Theme park tickets
+2025-07-25,101.02,Utilities,Water utility bill
+2025-07-25,149.96,Healthcare,Eye exam appointment
+2025-07-25,279.94,Shopping,Apple Store accessory
+2025-07-26,53.88,Dining,Panda Express
+2025-07-26,76.41,Entertainment,Comedy show tickets
+2025-07-27,191.77,Groceries,Local farmer's market
+2025-07-27,84.53,Shopping,Etsy handmade item
+2025-07-27,58.82,Dining,McDonald's meal
+2025-07-27,69.73,Dining,Burger King drive-thru
+2025-07-27,98.12,Shopping,Etsy handmade item
+2025-07-28,59.84,Groceries,Aldi supermarket
+2025-07-28,42.71,Dining,Domino's pizza order
+2025-07-28,25.5,Dining,Starbucks coffee
+2025-07-28,330.72,Healthcare,Lab work fees
+2025-07-29,290.51,Healthcare,Eye exam appointment
+2025-07-29,220.16,Shopping,Etsy handmade item
+2025-07-29,98.92,Shopping,Nordstrom apparel
+2025-07-29,28.07,Dining,Sushi restaurant
+2025-07-29,40.22,Subscriptions,Spotify premium
+2025-07-30,26.63,Dining,McDonald's meal
+2025-07-30,60.75,Entertainment,Arcade gaming
+2025-07-31,186.47,Shopping,Best Buy electronics
+2025-07-31,33.79,Dining,Sushi restaurant
+2025-07-31,25.42,Subscriptions,Disney+ subscription
+2025-07-31,101.32,Utilities,Comcast internet
+2025-07-31,188.81,Shopping,Home Depot supplies
+2025-08-01,165.96,Shopping,Amazon order
+2025-08-02,46.49,Dining,Panda Express
+2025-08-02,131.13,Groceries,Walmart grocery purchase
+2025-08-02,42.59,Transportation,Bus pass monthly
+2025-08-02,117.35,Groceries,Costco bulk buy
+2025-08-03,197.3,Utilities,AT&T phone plan
+2025-08-03,104.84,Groceries,Safeway essentials
+2025-08-03,191.33,Groceries,Aldi supermarket
+2025-08-03,98.09,Utilities,Comcast internet
+2025-08-03,32.62,Dining,Chipotle lunch
+2025-08-04,97.61,Transportation,Train ticket
+2025-08-04,106.34,Entertainment,Theme park tickets
+2025-08-04,49.33,Transportation,Train ticket
+2025-08-05,27.74,Transportation,Toll road charge
+2025-08-05,77.37,Groceries,Aldi supermarket
+2025-08-05,202.78,Utilities,Water utility bill
+2025-08-06,132.32,Groceries,Fresh produce market
+2025-08-07,26.82,Dining,McDonald's meal
+2025-08-07,153.7,Entertainment,Bowling alley
+2025-08-07,454.37,Transportation,UNUSUAL: Train ticket
+2025-08-07,-2861.26,Salary,Bi-weekly paycheck
+2025-08-07,37.71,Dining,Olive Garden dinner
+2025-08-07,148.88,Utilities,Gas company payment
+2025-08-08,200.69,Healthcare,Eye exam appointment
+2025-08-08,1518.44,Rent,Housing lease payment
+2025-08-08,48.57,Dining,Taco Bell late night
+2025-08-08,152.25,Groceries,Target grocery run
+2025-08-08,203.42,Shopping,Etsy handmade item
+2025-08-08,199.64,Shopping,Best Buy electronics
+2025-08-09,76.17,Groceries,Fresh produce market
+2025-08-09,84.2,Shopping,Target household items
+2025-08-09,40.15,Dining,Starbucks coffee
+2025-08-10,188.65,Healthcare,CVS pharmacy
+2025-08-10,77.8,Groceries,Kroger weekly shopping
+2025-08-11,82.47,Groceries,Target grocery run
+2025-08-11,67.29,Dining,Domino's pizza order
+2025-08-11,218.09,Utilities,Phone bill
+2025-08-11,152.79,Shopping,Target household items
+2025-08-11,69.83,Transportation,Gas station fill-up
+2025-08-11,105.07,Entertainment,Museum admission
+2025-08-11,38.31,Entertainment,Streaming movie rental
+2025-08-11,62.48,Dining,Domino's pizza order
+2025-08-12,70.92,Groceries,Safeway essentials
+2025-08-12,147.2,Groceries,Kroger weekly shopping
+2025-08-12,81.0,Groceries,Whole Foods Market
+2025-08-12,44.8,Utilities,Gas company payment
+2025-08-13,258.4,Shopping,Best Buy electronics
+2025-08-13,75.72,Dining,Pizza Hut delivery
+2025-08-14,442.87,Healthcare,Doctor visit copay
+2025-08-14,54.87,Dining,Taco Bell late night
+2025-08-14,32.74,Dining,Domino's pizza order
+2025-08-14,35.11,Dining,Taco Bell late night
+2025-08-16,149.79,Groceries,Costco bulk buy
+2025-08-16,116.78,Dining,Burger King drive-thru
+2025-08-16,300.49,Utilities,Internet service bill
+2025-08-18,76.61,Groceries,Fresh produce market
+2025-08-18,21.92,Dining,Taco Bell late night
+2025-08-18,1785.24,Groceries,UNUSUAL: Fresh produce market
+2025-08-18,94.97,Dining,Sushi restaurant
+2025-08-19,163.65,Groceries,Costco bulk buy
+2025-08-19,27.95,Transportation,Toll road charge
+2025-08-19,81.6,Groceries,Target grocery run
+2025-08-20,127.48,Utilities,Gas company payment
+2025-08-20,130.02,Utilities,Electricity monthly charge
+2025-08-20,145.54,Utilities,Water utility bill
+2025-08-21,103.37,Shopping,Zara clothing
+2025-08-21,176.46,Shopping,Amazon order
+2025-08-22,46.84,Dining,Burger King drive-thru
+2025-08-22,2196.33,Utilities,UNUSUAL: Water utility bill
+2025-08-22,86.19,Groceries,Fresh produce market
+2025-08-22,154.13,Healthcare,Urgent care visit
+2025-08-23,56.57,Transportation,Parking garage fee
+2025-08-23,104.91,Shopping,Apple Store accessory
+2025-08-23,56.42,Dining,Chipotle lunch
+2025-08-24,215.64,Shopping,Nordstrom apparel
+2025-08-24,85.38,Groceries,Target grocery run
+2025-08-25,49.52,Dining,McDonald's meal
+2025-08-25,117.6,Groceries,Costco bulk buy
+2025-08-25,57.42,Transportation,Uber ride
+2025-08-25,59.05,Dining,Burger King drive-thru
+2025-08-25,124.72,Shopping,Best Buy electronics
+2025-08-25,115.95,Shopping,IKEA furniture
+2025-08-26,59.1,Transportation,Uber ride
+2025-08-26,60.44,Transportation,Car wash service
+2025-08-27,40.58,Dining,Domino's pizza order
+2025-08-27,111.08,Groceries,Target grocery run
+2025-08-27,102.18,Entertainment,Comedy show tickets
+2025-08-27,40.92,Transportation,Gas station fill-up
+2025-08-28,145.96,Utilities,Water utility bill
+2025-08-28,197.52,Shopping,Target household items
+2025-08-28,65.7,Dining,Panda Express
+2025-08-29,32.09,Dining,Panda Express
+2025-08-29,48.58,Dining,Thai food takeout
+2025-08-29,20.65,Dining,Thai food takeout
+2025-08-29,77.75,Transportation,Parking garage fee
+2025-08-29,223.44,Subscriptions,UNUSUAL: Spotify premium
+2025-08-30,124.55,Shopping,Nike online purchase
+2025-08-30,56.41,Dining,Burger King drive-thru
+2025-08-30,93.6,Shopping,Etsy handmade item
+2025-08-31,229.57,Groceries,Costco bulk buy
+2025-08-31,156.11,Healthcare,Health insurance copay
+2025-08-31,249.2,Shopping,Apple Store accessory
+2025-08-31,200.92,Shopping,Amazon order
+2025-08-31,94.39,Entertainment,Theme park tickets
+2025-09-01,329.12,Healthcare,Dental checkup
+2025-09-01,33.1,Dining,Taco Bell late night
+2025-09-01,88.24,Shopping,Nike online purchase
+2025-09-01,235.63,Shopping,Best Buy electronics
+2025-09-01,118.12,Groceries,Costco bulk buy
+2025-09-02,229.79,Shopping,Home Depot supplies
+2025-09-02,74.7,Transportation,Lyft trip
+2025-09-02,109.62,Utilities,Electric bill payment
+2025-09-02,139.71,Shopping,IKEA furniture
+2025-09-03,55.26,Transportation,Lyft trip
+2025-09-03,200.02,Entertainment,Museum admission
+2025-09-03,314.07,Shopping,Best Buy electronics
+2025-09-04,117.96,Groceries,Kroger weekly shopping
+2025-09-04,121.9,Groceries,Fresh produce market
+2025-09-04,117.22,Groceries,Costco bulk buy
+2025-09-04,98.81,Shopping,Zara clothing
+2025-09-05,48.64,Transportation,Uber ride
+2025-09-05,49.5,Entertainment,Video game purchase
+2025-09-05,277.09,Healthcare,Urgent care visit
+2025-09-05,957.67,Rent,Monthly apartment rent
+2025-09-06,92.91,Shopping,Home Depot supplies
+2025-09-06,40.34,Dining,Panda Express
+2025-09-06,55.17,Dining,McDonald's meal
+2025-09-06,51.26,Transportation,Subway fare
+2025-09-07,129.92,Groceries,Safeway essentials
+2025-09-07,41.15,Dining,Starbucks coffee
+2025-09-07,-5389.98,Salary,Bi-weekly paycheck
+2025-09-07,181.04,Utilities,Electricity monthly charge
+2025-09-08,55.67,Dining,Starbucks coffee
+2025-09-08,65.48,Dining,Panda Express
+2025-09-09,117.74,Groceries,Aldi supermarket
+2025-09-10,33.79,Dining,Chipotle lunch
+2025-09-10,14.36,Transportation,Subway fare
+2025-09-10,44.75,Dining,Burger King drive-thru
+2025-09-11,27.02,Transportation,Gas station fill-up
+2025-09-11,71.45,Groceries,Target grocery run
+2025-09-11,73.86,Transportation,Lyft trip
+2025-09-12,67.8,Dining,Burger King drive-thru
+2025-09-12,109.56,Groceries,Safeway essentials
+2025-09-12,26.18,Dining,Domino's pizza order
+2025-09-12,108.56,Groceries,Target grocery run
+2025-09-12,225.22,Groceries,Fresh produce market
+2025-09-12,128.88,Groceries,Trader Joe's groceries
+2025-09-13,52.4,Entertainment,Escape room experience
+2025-09-13,123.38,Entertainment,Concert admission
+2025-09-13,18.0,Subscriptions,Adobe Creative Cloud
+2025-09-14,278.56,Healthcare,Dental checkup
+2025-09-14,96.8,Transportation,Parking garage fee
+2025-09-14,185.14,Shopping,Home Depot supplies
+2025-09-14,69.75,Groceries,Local farmer's market
+2025-09-14,172.57,Utilities,Water utility bill
+2025-09-14,186.85,Utilities,Electricity monthly charge
+2025-09-14,105.14,Groceries,Fresh produce market
+2025-09-15,53.14,Entertainment,Comedy show tickets
+2025-09-15,74.34,Groceries,Aldi supermarket
+2025-09-15,23.71,Transportation,Lyft trip
+2025-09-15,121.56,Groceries,Aldi supermarket
+2025-09-15,112.51,Entertainment,Concert admission
+2025-09-15,89.45,Entertainment,Movie theater tickets
+2025-09-16,61.93,Transportation,Oil change service
+2025-09-16,89.93,Utilities,Water utility bill
+2025-09-17,67.84,Transportation,Lyft trip
+2025-09-17,69.71,Transportation,Parking garage fee
+2025-09-17,413.87,Shopping,Nordstrom apparel
+2025-09-17,142.28,Shopping,Target household items
+2025-09-17,30.93,Transportation,Parking garage fee
+2025-09-17,130.74,Groceries,Costco bulk buy
+2025-09-18,32.91,Dining,Pizza Hut delivery
+2025-09-18,118.34,Dining,Olive Garden dinner
+2025-09-18,164.16,Groceries,Local farmer's market
+2025-09-19,35.0,Dining,Pizza Hut delivery
+2025-09-19,22.12,Subscriptions,Hulu streaming service
+2025-09-19,299.79,Healthcare,Eye exam appointment
+2025-09-19,21.7,Subscriptions,Adobe Creative Cloud
+2025-09-19,79.19,Entertainment,Streaming movie rental
+2025-09-20,54.34,Dining,Panda Express
+2025-09-21,40.38,Dining,Chipotle lunch
+2025-09-22,119.27,Groceries,Whole Foods Market
+2025-09-23,68.95,Shopping,Zara clothing
+2025-09-24,30.64,Dining,Local cafe breakfast
+2025-09-24,148.57,Entertainment,Streaming movie rental
+2025-09-24,41.47,Transportation,Toll road charge
+2025-09-24,119.33,Groceries,Trader Joe's groceries
+2025-09-25,38.53,Dining,Sushi restaurant
+2025-09-25,16.22,Subscriptions,Spotify premium
+2025-09-25,142.3,Groceries,Fresh produce market
+2025-09-26,63.31,Dining,Local cafe breakfast
+2025-09-26,9.52,Subscriptions,iCloud storage plan
+2025-09-26,35.55,Dining,Thai food takeout
+2025-09-26,34.21,Transportation,Car wash service
+2025-09-27,139.14,Shopping,Best Buy electronics
+2025-09-27,25.77,Transportation,Gas station fill-up
+2025-09-27,26.32,Dining,Sushi restaurant
+2025-09-27,27.38,Transportation,Subway fare
+2025-09-28,133.04,Entertainment,Museum admission
+2025-09-28,173.38,Groceries,Local farmer's market
+2025-09-29,138.16,Healthcare,Doctor visit copay
+2025-09-29,70.17,Entertainment,Video game purchase
+2025-09-30,120.68,Groceries,Fresh produce market
+2025-09-30,199.74,Shopping,Nordstrom apparel
+2025-09-30,152.17,Utilities,Electric bill payment
+2025-09-30,52.11,Transportation,Subway fare
+2025-10-01,44.38,Transportation,Gas station fill-up
+2025-10-01,194.22,Shopping,Amazon order
+2025-10-01,400.0,Groceries,Safeway essentials
+2025-10-01,163.47,Shopping,Amazon order
+2025-10-02,106.57,Utilities,Phone bill
+2025-10-02,84.89,Transportation,Uber ride
+2025-10-02,46.01,Entertainment,Theme park tickets
+2025-10-03,60.3,Transportation,Bus pass monthly
+2025-10-03,70.18,Transportation,Oil change service
+2025-10-03,124.38,Shopping,Apple Store accessory
+2025-10-03,51.78,Transportation,Parking garage fee
+2025-10-04,130.31,Groceries,Local farmer's market
+2025-10-04,35.02,Dining,Burger King drive-thru
+2025-10-04,192.27,Groceries,Aldi supermarket
+2025-10-04,29.58,Subscriptions,Gym membership fee
+2025-10-05,66.24,Entertainment,Streaming movie rental
+2025-10-05,49.25,Dining,Olive Garden dinner
+2025-10-05,2040.54,Rent,Monthly apartment rent
+2025-10-05,80.13,Transportation,Car wash service
+2025-10-06,130.2,Groceries,Whole Foods Market
+2025-10-06,79.5,Dining,Local cafe breakfast
+2025-10-07,286.15,Shopping,Target household items
+2025-10-08,114.17,Groceries,Kroger weekly shopping
+2025-10-08,162.98,Shopping,Amazon order
+2025-10-08,-2315.2,Salary,Bi-weekly paycheck
+2025-10-09,85.35,Groceries,Aldi supermarket
+2025-10-10,49.96,Dining,McDonald's meal
+2025-10-10,40.06,Transportation,Lyft trip
+2025-10-10,41.23,Transportation,Bus pass monthly
+2025-10-11,152.63,Shopping,Apple Store accessory
+2025-10-11,42.59,Transportation,Uber ride
+2025-10-11,110.78,Shopping,Nike online purchase
+2025-10-12,88.57,Entertainment,Museum admission
+2025-10-12,27.18,Transportation,Subway fare
+2025-10-12,47.38,Dining,Panda Express
+2025-10-12,189.62,Shopping,Nike online purchase
+2025-10-12,49.04,Dining,Starbucks coffee
+2025-10-13,46.08,Entertainment,Theme park tickets
+2025-10-13,53.68,Transportation,Toll road charge
+2025-10-14,63.8,Groceries,Trader Joe's groceries
+2025-10-15,54.26,Transportation,Car wash service
+2025-10-15,68.59,Shopping,Home Depot supplies
+2025-10-15,79.22,Entertainment,Bowling alley
+2025-10-15,143.83,Utilities,Gas company payment
+2025-10-15,41.91,Subscriptions,Microsoft 365 subscription
+2025-10-16,171.72,Shopping,Zara clothing
+2025-10-16,75.61,Dining,Olive Garden dinner
+2025-10-16,34.64,Subscriptions,Amazon Prime renewal
+2025-10-16,33.55,Transportation,Oil change service
+2025-10-17,30.47,Transportation,Train ticket
+2025-10-17,80.4,Transportation,Car wash service
+2025-10-17,357.95,Shopping,Etsy handmade item
+2025-10-18,106.98,Shopping,Etsy handmade item
+2025-10-18,155.81,Shopping,Etsy handmade item
+2025-10-18,42.22,Dining,Panda Express
+2025-10-19,31.14,Subscriptions,iCloud storage plan
+2025-10-19,99.54,Groceries,Walmart grocery purchase
+2025-10-19,24.42,Transportation,Subway fare
+2025-10-20,57.46,Entertainment,Comedy show tickets
+2025-10-20,43.39,Dining,Chipotle lunch
+2025-10-20,65.3,Dining,Taco Bell late night
+2025-10-20,28.61,Dining,Panda Express
+2025-10-20,93.85,Entertainment,Arcade gaming
+2025-10-20,209.68,Shopping,Etsy handmade item
+2025-10-21,67.39,Transportation,Gas station fill-up
+2025-10-22,247.11,Utilities,Internet service bill
+2025-10-22,34.22,Transportation,Lyft trip
+2025-10-22,162.0,Utilities,Comcast internet
+2025-10-22,365.16,Shopping,Nordstrom apparel
+2025-10-22,29.77,Subscriptions,iCloud storage plan
+2025-10-23,167.51,Shopping,Apple Store accessory
+2025-10-23,166.94,Utilities,Electricity monthly charge
+2025-10-23,76.33,Groceries,Target grocery run
+2025-10-23,79.89,Transportation,Uber ride
+2025-10-24,38.9,Dining,Burger King drive-thru
+2025-10-25,124.38,Entertainment,Museum admission
+2025-10-25,216.89,Groceries,Kroger weekly shopping
+2025-10-26,90.16,Groceries,Aldi supermarket
+2025-10-26,38.81,Transportation,Toll road charge
+2025-10-26,234.48,Healthcare,Walgreens prescription
+2025-10-26,133.36,Groceries,Aldi supermarket
+2025-10-27,109.54,Groceries,Aldi supermarket
+2025-10-27,60.86,Groceries,Walmart grocery purchase
+2025-10-27,219.48,Shopping,Apple Store accessory
+2025-10-28,289.53,Healthcare,Eye exam appointment
+2025-10-28,26.56,Transportation,Car wash service
+2025-10-28,126.36,Entertainment,Theme park tickets
+2025-10-28,31.91,Transportation,Oil change service
+2025-10-28,27.06,Dining,Starbucks coffee
+2025-10-28,22.79,Subscriptions,Adobe Creative Cloud
+2025-10-29,40.21,Dining,Olive Garden dinner
+2025-10-29,264.67,Groceries,Whole Foods Market
+2025-10-29,50.57,Subscriptions,Disney+ subscription
+2025-10-30,79.0,Dining,Taco Bell late night
+2025-10-30,78.63,Dining,Chipotle lunch
+2025-10-31,25.98,Dining,Local cafe breakfast
+2025-10-31,56.19,Dining,Domino's pizza order
+2025-11-01,50.91,Transportation,Toll road charge
+2025-11-01,31.92,Dining,Burger King drive-thru
+2025-11-02,90.15,Groceries,Target grocery run
+2025-11-02,106.78,Utilities,Gas company payment
+2025-11-03,67.54,Dining,McDonald's meal
+2025-11-03,208.69,Utilities,AT&T phone plan
+2025-11-03,73.81,Groceries,Kroger weekly shopping
+2025-11-03,120.71,Utilities,Electric bill payment
+2025-11-03,247.43,Shopping,Amazon order
+2025-11-04,37.68,Transportation,Uber ride
+2025-11-04,24.47,Dining,Sushi restaurant
+2025-11-05,37.54,Dining,Sushi restaurant
+2025-11-05,62.38,Dining,Starbucks coffee
+2025-11-05,70.55,Utilities,Water utility bill
+2025-11-05,40.0,Transportation,Subway fare
+2025-11-05,256.14,Shopping,Etsy handmade item
+2025-11-05,20.91,Transportation,Parking garage fee
+2025-11-06,185.11,Shopping,Target household items
+2025-11-06,1851.48,Rent,Housing lease payment
+2025-11-06,171.18,Shopping,Best Buy electronics
+2025-11-06,22.36,Subscriptions,YouTube Premium
+2025-11-06,135.15,Shopping,Target household items
+2025-11-07,50.19,Transportation,Oil change service
+2025-11-07,45.96,Dining,Starbucks coffee
+2025-11-07,37.7,Groceries,Local farmer's market
+2025-11-07,47.23,Transportation,Train ticket
+2025-11-07,128.48,Shopping,Target household items
+2025-11-07,23.53,Dining,Domino's pizza order
+2025-11-08,70.33,Entertainment,Escape room experience
+2025-11-08,-2769.15,Salary,Monthly salary deposit
+2025-11-08,59.86,Dining,Olive Garden dinner
+2025-11-08,157.45,Groceries,Target grocery run
+2025-11-09,67.78,Transportation,Car wash service
+2025-11-09,62.51,Transportation,Gas station fill-up
+2025-11-09,117.12,Utilities,Comcast internet
+2025-11-10,113.92,Entertainment,Concert admission
+2025-11-10,226.74,Groceries,Costco bulk buy
+2025-11-10,54.02,Entertainment,Concert admission
+2025-11-10,105.14,Groceries,Whole Foods Market
+2025-11-10,291.56,Shopping,Apple Store accessory
+2025-11-11,119.66,Shopping,Etsy handmade item
+2025-11-11,35.69,Transportation,Lyft trip
+2025-11-11,28.73,Subscriptions,Amazon Prime renewal
+2025-11-11,67.29,Transportation,Train ticket
+2025-11-12,40.19,Dining,Sushi restaurant
+2025-11-12,105.4,Dining,McDonald's meal
+2025-11-12,82.5,Entertainment,Video game purchase
+2025-11-13,41.7,Dining,Chipotle lunch
+2025-11-13,134.95,Entertainment,Museum admission
+2025-11-13,153.47,Entertainment,Comedy show tickets
+2025-11-13,73.42,Dining,Chipotle lunch
+2025-11-13,50.16,Subscriptions,Spotify premium
+2025-11-13,23.81,Dining,Starbucks coffee
+2025-11-13,43.68,Dining,Chipotle lunch
+2025-11-14,51.14,Transportation,Gas station fill-up
+2025-11-14,139.5,Groceries,Kroger weekly shopping
+2025-11-15,127.26,Groceries,Whole Foods Market
+2025-11-15,66.05,Subscriptions,Adobe Creative Cloud
+2025-11-16,47.76,Transportation,Subway fare
+2025-11-16,28.6,Dining,Panda Express
+2025-11-16,1055.32,Groceries,UNUSUAL: Walmart grocery purchase
+2025-11-16,25.3,Subscriptions,Hulu streaming service
+2025-11-16,81.24,Groceries,Costco bulk buy
+2025-11-17,59.06,Dining,Local cafe breakfast
+2025-11-17,485.62,Healthcare,Pharmacy prescription
+2025-11-17,92.8,Entertainment,Movie theater tickets
+2025-11-17,194.05,Groceries,Whole Foods Market
+2025-11-18,100.33,Groceries,Safeway essentials
+2025-11-18,53.38,Dining,Sushi restaurant
+2025-11-18,371.73,Healthcare,Urgent care visit
+2025-11-18,99.09,Utilities,Water utility bill
+2025-11-18,75.08,Groceries,Whole Foods Market
+2025-11-19,262.55,Healthcare,Lab work fees
+2025-11-19,130.27,Shopping,Nike online purchase
+2025-11-19,56.52,Transportation,Oil change service
+2025-11-20,98.53,Transportation,Oil change service
+2025-11-20,338.81,Healthcare,Pharmacy prescription
+2025-11-21,53.17,Dining,Olive Garden dinner
+2025-11-21,177.63,Utilities,AT&T phone plan
+2025-11-22,587.17,Healthcare,Urgent care visit
+2025-11-22,50.48,Groceries,Local farmer's market
+2025-11-22,192.26,Healthcare,Doctor visit copay
+2025-11-22,41.9,Transportation,Train ticket
+2025-11-23,103.14,Entertainment,Museum admission
+2025-11-23,49.42,Dining,Burger King drive-thru
+2025-11-23,77.06,Groceries,Kroger weekly shopping
+2025-11-24,64.04,Groceries,Trader Joe's groceries
+2025-11-25,39.46,Dining,Olive Garden dinner
+2025-11-25,27.26,Dining,Chipotle lunch
+2025-11-25,88.76,Groceries,Trader Joe's groceries
+2025-11-25,35.25,Dining,Burger King drive-thru
+2025-11-25,55.64,Entertainment,Movie theater tickets
+2025-11-25,84.15,Transportation,Toll road charge
+2025-11-25,56.63,Dining,Local cafe breakfast
+2025-11-26,159.77,Shopping,Amazon order
+2025-11-26,28.47,Dining,Pizza Hut delivery
+2025-11-26,73.77,Transportation,Uber ride
+2025-11-26,48.36,Dining,Olive Garden dinner
+2025-11-27,43.45,Subscriptions,Spotify premium
+2025-11-27,105.5,Groceries,Kroger weekly shopping
+2025-11-27,55.02,Dining,Domino's pizza order
+2025-11-27,98.46,Groceries,Local farmer's market
+2025-11-28,39.87,Dining,Olive Garden dinner
+2025-11-28,208.24,Healthcare,Dental checkup
+2025-11-28,118.52,Entertainment,Arcade gaming
+2025-11-28,53.11,Transportation,Subway fare
+2025-11-29,98.54,Groceries,Whole Foods Market
+2025-11-29,60.09,Transportation,Parking garage fee
+2025-11-29,41.65,Dining,Burger King drive-thru
+2025-11-29,60.65,Groceries,Costco bulk buy
+2025-11-29,135.98,Utilities,Gas company payment
+2025-11-30,107.27,Dining,Panda Express
+2025-11-30,94.8,Utilities,Electricity monthly charge
+2025-11-30,76.01,Dining,Domino's pizza order
+2025-12-01,146.96,Transportation,Train ticket
+2025-12-01,177.66,Shopping,Nordstrom apparel
+2025-12-01,106.69,Groceries,Aldi supermarket
+2025-12-02,258.12,Groceries,Whole Foods Market
+2025-12-02,38.75,Dining,Local cafe breakfast
+2025-12-02,97.03,Entertainment,Bowling alley
+2025-12-02,60.24,Transportation,Uber ride
+2025-12-03,88.26,Groceries,Kroger weekly shopping
+2025-12-03,158.78,Groceries,Aldi supermarket
+2025-12-03,89.52,Entertainment,Arcade gaming
+2025-12-03,78.11,Groceries,Kroger weekly shopping
+2025-12-03,28.98,Subscriptions,YouTube Premium
+2025-12-03,159.56,Utilities,AT&T phone plan
+2025-12-03,117.11,Groceries,Walmart grocery purchase
+2025-12-04,1924.15,Rent,Housing lease payment
+2025-12-04,48.73,Dining,McDonald's meal
+2025-12-04,76.61,Groceries,Kroger weekly shopping
+2025-12-04,78.18,Entertainment,Concert admission
+2025-12-04,152.57,Shopping,Apple Store accessory
+2025-12-04,356.53,Healthcare,Eye exam appointment
+2025-12-04,30.15,Dining,Chipotle lunch
+2025-12-04,-5421.27,Salary,Monthly salary deposit
+2025-12-04,83.1,Dining,Taco Bell late night
+2025-12-05,58.33,Dining,Taco Bell late night
+2025-12-05,100.19,Dining,Local cafe breakfast
+2025-12-05,31.87,Dining,Thai food takeout
+2025-12-06,57.61,Entertainment,Comedy show tickets
+2025-12-06,171.26,Shopping,IKEA furniture
+2025-12-07,41.08,Subscriptions,Disney+ subscription
+2025-12-07,187.3,Utilities,Water utility bill
+2025-12-08,84.13,Groceries,Costco bulk buy
+2025-12-08,25.55,Subscriptions,Amazon Prime renewal
+2025-12-08,52.28,Dining,Sushi restaurant
+2025-12-09,293.98,Healthcare,Eye exam appointment
+2025-12-10,25.76,Dining,Chipotle lunch
+2025-12-10,33.69,Subscriptions,Hulu streaming service
+2025-12-10,138.52,Shopping,Zara clothing
+2025-12-10,76.33,Transportation,Oil change service
+2025-12-11,84.54,Groceries,Whole Foods Market
+2025-12-11,55.15,Groceries,Trader Joe's groceries
+2025-12-11,37.26,Transportation,Uber ride
+2025-12-11,47.03,Transportation,Subway fare
+2025-12-12,24.89,Subscriptions,Disney+ subscription
+2025-12-13,26.18,Transportation,Gas station fill-up
+2025-12-13,235.35,Shopping,Best Buy electronics
+2025-12-14,28.59,Transportation,Lyft trip
+2025-12-14,58.75,Transportation,Uber ride
+2025-12-15,14.45,Dining,McDonald's meal
+2025-12-16,46.36,Dining,Thai food takeout
+2025-12-16,48.42,Dining,Panda Express
+2025-12-17,101.24,Groceries,Target grocery run
+2025-12-17,76.68,Dining,Panda Express
+2025-12-17,92.66,Groceries,Safeway essentials
+2025-12-17,144.41,Shopping,Etsy handmade item
+2025-12-17,73.35,Groceries,Fresh produce market
+2025-12-18,83.47,Transportation,Parking garage fee
+2025-12-18,68.37,Dining,Local cafe breakfast
+2025-12-18,67.44,Entertainment,Arcade gaming
+2025-12-18,217.27,Utilities,Phone bill
+2025-12-18,37.08,Subscriptions,Hulu streaming service
+2025-12-18,123.09,Groceries,Local farmer's market
+2025-12-18,69.24,Entertainment,Arcade gaming
+2025-12-19,55.39,Dining,Local cafe breakfast
+2025-12-19,61.81,Transportation,Subway fare
+2025-12-19,24.16,Dining,Starbucks coffee
+2025-12-20,47.52,Transportation,Bus pass monthly
+2025-12-20,112.18,Groceries,Trader Joe's groceries
+2025-12-20,52.0,Transportation,Uber ride
+2025-12-20,161.0,Groceries,Walmart grocery purchase
+2025-12-20,44.53,Transportation,Train ticket
+2025-12-21,133.6,Groceries,Trader Joe's groceries
+2025-12-21,67.17,Transportation,Oil change service
+2025-12-21,180.3,Utilities,AT&T phone plan
+2025-12-21,36.33,Dining,Burger King drive-thru
+2025-12-21,28.17,Transportation,Oil change service
+2025-12-21,124.65,Entertainment,Comedy show tickets
+2025-12-22,216.06,Shopping,Apple Store accessory
+2025-12-22,58.78,Shopping,Nordstrom apparel
+2025-12-22,47.36,Dining,Chipotle lunch
+2025-12-22,169.31,Groceries,Kroger weekly shopping
+2025-12-23,164.6,Shopping,Apple Store accessory
+2025-12-23,78.52,Transportation,Toll road charge
+2025-12-23,23.89,Dining,McDonald's meal
+2025-12-23,38.52,Dining,Pizza Hut delivery
+2025-12-23,59.13,Subscriptions,Gym membership fee
+2025-12-24,129.01,Shopping,Nike online purchase
+2025-12-24,26.74,Dining,Taco Bell late night
+2025-12-24,121.33,Groceries,Costco bulk buy
+2025-12-24,117.49,Groceries,Target grocery run
+2025-12-24,88.76,Entertainment,Comedy show tickets
+2025-12-25,92.88,Shopping,Nordstrom apparel
+2025-12-25,51.32,Dining,Taco Bell late night
+2025-12-25,43.64,Entertainment,Concert admission
+2025-12-25,74.39,Transportation,Gas station fill-up
+2025-12-26,83.52,Transportation,Parking garage fee
+2025-12-26,34.46,Dining,Local cafe breakfast
+2025-12-26,25.91,Dining,Domino's pizza order
+2025-12-27,61.52,Dining,Starbucks coffee
+2025-12-28,55.22,Dining,Olive Garden dinner
+2025-12-28,116.36,Groceries,Trader Joe's groceries
+2025-12-28,63.94,Entertainment,Theme park tickets
+2025-12-28,207.07,Healthcare,Walgreens prescription
+2025-12-29,50.13,Dining,Burger King drive-thru
+2025-12-30,68.39,Dining,Local cafe breakfast
+2025-12-30,215.33,Shopping,Zara clothing
+2025-12-30,108.38,Entertainment,Streaming movie rental
+2025-12-31,65.96,Transportation,Train ticket
+2025-12-31,37.73,Dining,Chipotle lunch
+2025-12-31,123.77,Shopping,Etsy handmade item
+2025-12-31,89.46,Groceries,Kroger weekly shopping
+2026-01-01,76.52,Groceries,Safeway essentials
+2026-01-01,57.67,Shopping,Amazon order
+2026-01-01,404.09,Healthcare,CVS pharmacy
+2026-01-01,108.72,Groceries,Target grocery run
+2026-01-02,45.41,Transportation,Gas station fill-up
+2026-01-02,26.33,Transportation,Parking garage fee
+2026-01-02,89.16,Dining,Panda Express
+2026-01-03,48.34,Groceries,Local farmer's market
+2026-01-03,186.86,Groceries,Aldi supermarket
+2026-01-03,108.38,Entertainment,Video game purchase
+2026-01-03,31.27,Dining,Local cafe breakfast
+2026-01-03,87.67,Shopping,Amazon order
+2026-01-03,24.2,Dining,Thai food takeout
+2026-01-03,117.11,Groceries,Costco bulk buy
+2026-01-03,75.74,Groceries,Safeway essentials
+2026-01-03,71.14,Utilities,Electricity monthly charge
+2026-01-04,1272.56,Rent,Housing lease payment
+2026-01-04,-3480.72,Salary,Paycheck direct deposit
+2026-01-05,88.9,Groceries,Trader Joe's groceries
+2026-01-05,130.1,Groceries,Fresh produce market
+2026-01-05,25.15,Subscriptions,Netflix monthly subscription
+2026-01-05,67.3,Dining,Taco Bell late night
+2026-01-05,68.32,Transportation,Toll road charge
+2026-01-06,103.54,Utilities,Electricity monthly charge
+2026-01-06,129.81,Groceries,Costco bulk buy
+2026-01-07,88.42,Dining,Starbucks coffee
+2026-01-07,83.36,Shopping,Home Depot supplies
+2026-01-07,20.19,Subscriptions,Hulu streaming service
+2026-01-09,47.31,Subscriptions,Netflix monthly subscription
+2026-01-11,111.15,Dining,Domino's pizza order
+2026-01-11,82.74,Dining,Sushi restaurant
+2026-01-12,83.45,Transportation,Oil change service
+2026-01-12,57.81,Utilities,Comcast internet
+2026-01-12,12.16,Subscriptions,Adobe Creative Cloud
+2026-01-12,87.45,Groceries,Safeway essentials
+2026-01-13,202.42,Healthcare,Dental checkup
+2026-01-14,47.8,Transportation,Car wash service
+2026-01-14,163.2,Subscriptions,UNUSUAL: Amazon Prime renewal
+2026-01-14,88.5,Transportation,Gas station fill-up
+2026-01-15,55.12,Dining,Chipotle lunch
+2026-01-15,87.12,Dining,Panda Express
+2026-01-15,158.37,Groceries,Trader Joe's groceries
+2026-01-15,35.91,Dining,Chipotle lunch
+2026-01-15,31.07,Dining,Starbucks coffee
+2026-01-15,45.43,Groceries,Fresh produce market
+2026-01-15,33.6,Subscriptions,Netflix monthly subscription
+2026-01-15,41.59,Dining,Panda Express
+2026-01-16,63.93,Transportation,Oil change service
+2026-01-16,83.93,Entertainment,Bowling alley
+2026-01-16,43.61,Dining,McDonald's meal
+2026-01-17,84.47,Transportation,Train ticket
+2026-01-17,18.48,Dining,Sushi restaurant
+2026-01-17,282.81,Shopping,Target household items
+2026-01-18,47.11,Dining,Thai food takeout
+2026-01-18,114.54,Shopping,Zara clothing
+2026-01-19,58.24,Subscriptions,Adobe Creative Cloud
+2026-01-19,38.23,Transportation,Subway fare
+2026-01-19,79.93,Dining,Local cafe breakfast
+2026-01-19,83.31,Groceries,Fresh produce market
+2026-01-19,179.48,Shopping,Zara clothing
+2026-01-19,35.02,Transportation,Lyft trip
+2026-01-20,156.46,Groceries,Whole Foods Market
+2026-01-20,149.2,Shopping,Amazon order
+2026-01-20,73.02,Groceries,Fresh produce market
+2026-01-20,222.64,Healthcare,Lab work fees
+2026-01-20,66.92,Entertainment,Video game purchase
+2026-01-20,40.47,Transportation,Subway fare
+2026-01-21,102.96,Transportation,Oil change service
+2026-01-22,49.39,Dining,Chipotle lunch
+2026-01-22,38.49,Dining,Domino's pizza order
+2026-01-22,240.28,Healthcare,Dental checkup
+2026-01-23,28.28,Subscriptions,YouTube Premium
+2026-01-24,207.33,Groceries,Kroger weekly shopping
+2026-01-24,26.15,Dining,Thai food takeout
+2026-01-24,35.51,Transportation,Bus pass monthly
+2026-01-24,77.5,Utilities,AT&T phone plan
+2026-01-25,69.34,Groceries,Whole Foods Market
+2026-01-25,83.14,Entertainment,Arcade gaming
+2026-01-25,115.84,Groceries,Safeway essentials
+2026-01-25,86.62,Groceries,Whole Foods Market
+2026-01-25,67.94,Dining,Olive Garden dinner
+2026-01-25,34.38,Dining,Pizza Hut delivery
+2026-01-25,103.1,Transportation,Car wash service
+2026-01-26,47.15,Transportation,Lyft trip
+2026-01-26,248.42,Healthcare,Eye exam appointment
+2026-01-27,104.84,Groceries,Safeway essentials
+2026-01-27,73.68,Dining,Domino's pizza order
+2026-01-27,53.78,Dining,McDonald's meal
+2026-01-27,182.08,Groceries,Whole Foods Market
+2026-01-28,131.2,Groceries,Kroger weekly shopping
+2026-01-29,24.83,Subscriptions,Amazon Prime renewal
+2026-01-29,48.82,Dining,McDonald's meal
+2026-01-29,162.8,Groceries,Kroger weekly shopping
+2026-01-30,70.69,Entertainment,Comedy show tickets
+2026-01-30,104.7,Groceries,Trader Joe's groceries
+2026-01-30,26.49,Transportation,Parking garage fee
+2026-01-30,214.88,Healthcare,CVS pharmacy
+2026-01-31,57.77,Dining,Thai food takeout
+2026-01-31,73.09,Transportation,Uber ride
+2026-01-31,31.37,Dining,Thai food takeout
+2026-02-01,40.46,Transportation,Lyft trip
+2026-02-01,18.81,Subscriptions,Gym membership fee
+2026-02-01,102.02,Entertainment,Bowling alley
+2026-02-01,116.5,Groceries,Whole Foods Market
+2026-02-01,51.17,Transportation,Lyft trip
+2026-02-01,145.87,Shopping,Amazon order
+2026-02-02,49.09,Groceries,Safeway essentials
+2026-02-02,24.98,Dining,Pizza Hut delivery
+2026-02-02,79.04,Dining,Sushi restaurant
+2026-02-02,52.01,Dining,Local cafe breakfast
+2026-02-03,165.67,Shopping,Best Buy electronics
+2026-02-03,32.59,Subscriptions,Spotify premium
+2026-02-03,30.48,Dining,McDonald's meal
+2026-02-03,154.24,Shopping,Zara clothing
+2026-02-04,312.8,Shopping,Nike online purchase
+2026-02-04,1253.86,Rent,Monthly apartment rent
+2026-02-04,69.85,Transportation,Subway fare
+2026-02-04,44.49,Dining,Sushi restaurant
+2026-02-05,124.22,Groceries,Whole Foods Market
+2026-02-05,249.18,Healthcare,Eye exam appointment
+2026-02-05,14.95,Subscriptions,Microsoft 365 subscription
+2026-02-05,210.1,Shopping,Nike online purchase
+2026-02-06,47.14,Transportation,Train ticket
+2026-02-06,-4539.91,Salary,Paycheck direct deposit
+2026-02-06,62.69,Groceries,Target grocery run
+2026-02-06,89.28,Utilities,Electric bill payment
+2026-02-06,32.49,Dining,Local cafe breakfast
+2026-02-06,57.84,Transportation,Lyft trip
+2026-02-07,59.46,Transportation,Uber ride
+2026-02-07,26.43,Subscriptions,Adobe Creative Cloud
+2026-02-08,35.14,Subscriptions,iCloud storage plan
+2026-02-09,35.42,Subscriptions,Netflix monthly subscription
+2026-02-09,58.72,Transportation,Gas station fill-up
+2026-02-09,45.72,Entertainment,Bowling alley
+2026-02-09,460.12,Shopping,Home Depot supplies
+2026-02-09,320.03,Shopping,Nike online purchase
+2026-02-10,44.22,Dining,Burger King drive-thru
+2026-02-10,99.76,Dining,Olive Garden dinner
+2026-02-10,102.22,Groceries,Trader Joe's groceries
+2026-02-11,34.42,Subscriptions,Spotify premium
+2026-02-11,91.56,Groceries,Target grocery run
+2026-02-11,164.23,Utilities,Gas company payment
+2026-02-12,71.05,Groceries,Aldi supermarket
+2026-02-12,141.62,Shopping,Home Depot supplies
+2026-02-13,295.77,Healthcare,Pharmacy prescription
+2026-02-13,63.77,Dining,Burger King drive-thru
+2026-02-13,155.09,Groceries,Trader Joe's groceries
+2026-02-13,54.35,Transportation,Parking garage fee
+2026-02-14,100.11,Transportation,Subway fare
+2026-02-14,71.93,Transportation,Train ticket
+2026-02-14,184.96,Utilities,Water utility bill
+2026-02-14,41.87,Dining,Sushi restaurant
+2026-02-15,85.35,Groceries,Local farmer's market
+2026-02-15,31.96,Dining,Local cafe breakfast
+2026-02-16,110.77,Entertainment,Museum admission
+2026-02-16,97.48,Entertainment,Bowling alley
+2026-02-16,45.19,Transportation,Car wash service
+2026-02-16,297.91,Shopping,Best Buy electronics
+2026-02-16,442.56,Healthcare,CVS pharmacy
+2026-02-17,37.49,Subscriptions,Gym membership fee
+2026-02-17,144.6,Entertainment,Comedy show tickets
+2026-02-17,30.9,Dining,Starbucks coffee
+2026-02-17,228.14,Groceries,Aldi supermarket
+2026-02-18,57.7,Entertainment,Arcade gaming
+2026-02-18,51.02,Dining,Thai food takeout
+2026-02-18,83.19,Entertainment,Streaming movie rental
+2026-02-19,24.38,Dining,Pizza Hut delivery
+2026-02-20,27.79,Dining,Sushi restaurant
+2026-02-20,40.07,Dining,Taco Bell late night
+2026-02-20,26.47,Dining,Domino's pizza order
+2026-02-21,42.67,Dining,Panda Express
+2026-02-22,102.76,Utilities,Water utility bill
+2026-02-23,156.15,Shopping,Target household items
+2026-02-23,121.26,Utilities,Internet service bill
+2026-02-23,127.71,Shopping,Amazon order
+2026-02-24,134.08,Shopping,IKEA furniture
+2026-02-24,32.22,Subscriptions,Microsoft 365 subscription
+2026-02-24,109.59,Groceries,Kroger weekly shopping
+2026-02-25,64.05,Groceries,Whole Foods Market
+2026-02-25,195.96,Utilities,Phone bill
+2026-02-25,118.57,Groceries,Whole Foods Market
+2026-02-26,261.44,Healthcare,Health insurance copay
+2026-02-26,110.62,Groceries,Fresh produce market
+2026-02-28,37.87,Dining,Thai food takeout
+2026-02-28,310.38,Shopping,Zara clothing
+2026-02-28,68.05,Groceries,Safeway essentials
+2026-03-01,125.87,Groceries,Target grocery run
+2026-03-01,176.96,Groceries,Local farmer's market
+2026-03-01,58.32,Dining,Local cafe breakfast
+2026-03-01,24.2,Dining,Olive Garden dinner
+2026-03-01,203.6,Shopping,Amazon order
+2026-03-02,37.21,Transportation,Toll road charge
+2026-03-03,124.73,Transportation,Toll road charge
+2026-03-03,34.64,Dining,Sushi restaurant
+2026-03-03,155.33,Shopping,Zara clothing
+2026-03-04,1585.84,Rent,Housing lease payment
+2026-03-04,28.01,Transportation,Parking garage fee
+2026-03-04,94.84,Entertainment,Museum admission
+2026-03-05,93.4,Groceries,Kroger weekly shopping
+2026-03-05,37.74,Transportation,Lyft trip
+2026-03-05,45.55,Dining,Chipotle lunch
+2026-03-06,62.8,Transportation,Subway fare
+2026-03-06,270.38,Healthcare,Eye exam appointment
+2026-03-06,18.54,Dining,Pizza Hut delivery
+2026-03-07,31.36,Subscriptions,Disney+ subscription
+2026-03-07,200.8,Shopping,Etsy handmade item
+2026-03-07,41.7,Transportation,Oil change service
+2026-03-07,246.01,Utilities,Electricity monthly charge
+2026-03-08,36.29,Transportation,Parking garage fee
+2026-03-08,79.28,Transportation,Lyft trip
+2026-03-08,14.46,Subscriptions,Adobe Creative Cloud
+2026-03-08,57.21,Dining,Panda Express
+2026-03-08,227.74,Groceries,Kroger weekly shopping
+2026-03-08,-2878.46,Salary,Bi-weekly paycheck
+2026-03-08,105.2,Utilities,Electric bill payment
+2026-03-08,57.87,Dining,Starbucks coffee
+2026-03-08,110.73,Groceries,Safeway essentials
+2026-03-08,94.52,Groceries,Kroger weekly shopping
+2026-03-09,157.2,Shopping,Nordstrom apparel
+2026-03-10,146.0,Entertainment,Museum admission
+2026-03-10,126.24,Groceries,Fresh produce market
+2026-03-10,109.37,Entertainment,Concert admission
+2026-03-10,28.59,Subscriptions,Hulu streaming service
+2026-03-11,22.02,Subscriptions,Microsoft 365 subscription
+2026-03-11,122.78,Groceries,Walmart grocery purchase
+2026-03-11,65.97,Transportation,Toll road charge
+2026-03-11,25.8,Dining,Chipotle lunch
+2026-03-12,32.21,Dining,Thai food takeout
+2026-03-12,137.91,Groceries,Costco bulk buy
+2026-03-12,51.34,Dining,Burger King drive-thru
+2026-03-12,32.75,Dining,Panda Express
+2026-03-12,52.19,Dining,Chipotle lunch
+2026-03-13,49.56,Dining,Olive Garden dinner
+2026-03-14,29.42,Dining,Thai food takeout
+2026-03-14,104.52,Groceries,Whole Foods Market
+2026-03-14,86.97,Groceries,Safeway essentials
+2026-03-14,45.57,Dining,Chipotle lunch
+2026-03-15,263.57,Healthcare,Pharmacy prescription
+2026-03-15,13.03,Subscriptions,Microsoft 365 subscription
+2026-03-15,53.78,Transportation,Bus pass monthly
+2026-03-16,120.04,Utilities,Water utility bill
+2026-03-16,78.36,Groceries,Fresh produce market
+2026-03-17,27.12,Subscriptions,Netflix monthly subscription
+2026-03-17,48.07,Dining,Chipotle lunch
+2026-03-17,34.44,Dining,Taco Bell late night
+2026-03-17,52.37,Dining,Olive Garden dinner
+2026-03-17,39.98,Transportation,Oil change service
+2026-03-17,48.72,Transportation,Parking garage fee
+2026-03-17,26.96,Subscriptions,Adobe Creative Cloud
+2026-03-18,26.35,Subscriptions,Disney+ subscription
+2026-03-18,37.37,Dining,Local cafe breakfast
+2026-03-19,89.33,Shopping,Nordstrom apparel
+2026-03-19,188.15,Groceries,Trader Joe's groceries
+2026-03-20,36.49,Transportation,Train ticket
+2026-03-20,47.1,Subscriptions,Hulu streaming service
+2026-03-20,107.95,Shopping,Nordstrom apparel
+2026-03-20,192.65,Shopping,Nike online purchase
+2026-03-20,82.06,Dining,Domino's pizza order
+2026-03-21,43.21,Transportation,Subway fare
+2026-03-22,116.29,Shopping,Best Buy electronics
+2026-03-22,87.41,Groceries,Safeway essentials
+2026-03-23,43.27,Transportation,Oil change service
+2026-03-23,45.88,Dining,Chipotle lunch
+2026-03-24,62.34,Transportation,Train ticket
+2026-03-24,171.19,Groceries,Costco bulk buy
+2026-03-24,84.58,Groceries,Kroger weekly shopping
+2026-03-25,92.85,Utilities,Water utility bill
+2026-03-25,21.41,Subscriptions,Adobe Creative Cloud
+2026-03-26,112.89,Shopping,Best Buy electronics
+2026-03-26,33.79,Subscriptions,Gym membership fee
+2026-03-26,27.8,Subscriptions,Disney+ subscription
+2026-03-26,35.5,Transportation,Bus pass monthly
+2026-03-26,90.85,Groceries,Trader Joe's groceries
+2026-03-26,27.89,Dining,McDonald's meal
+2026-03-26,80.84,Entertainment,Comedy show tickets
+2026-03-26,46.18,Dining,Chipotle lunch
+2026-03-27,51.07,Dining,Pizza Hut delivery
+2026-03-27,468.45,Healthcare,Walgreens prescription
+2026-03-27,53.47,Transportation,Bus pass monthly
+2026-03-28,60.56,Transportation,Oil change service
+2026-03-28,46.8,Subscriptions,Gym membership fee
+2026-03-28,43.76,Dining,Burger King drive-thru
+2026-03-29,35.49,Transportation,Oil change service
+2026-03-29,33.73,Transportation,Train ticket
+2026-03-29,70.87,Dining,Pizza Hut delivery
+2026-03-29,87.79,Entertainment,Escape room experience
+2026-03-29,132.03,Groceries,Aldi supermarket
+2026-03-29,96.69,Entertainment,Arcade gaming
+2026-03-30,48.47,Dining,Thai food takeout
+2026-03-30,144.98,Shopping,Nordstrom apparel
+2026-03-30,55.02,Transportation,Oil change service
+2026-03-31,44.47,Dining,Thai food takeout
+2026-03-31,41.68,Transportation,Parking garage fee
+2026-03-31,50.48,Dining,Pizza Hut delivery
+2026-03-31,64.22,Dining,Chipotle lunch
+2026-03-31,38.83,Transportation,Toll road charge
+2026-03-31,40.69,Dining,Olive Garden dinner
+2026-03-31,43.85,Entertainment,Bowling alley
+2026-04-01,23.93,Dining,Burger King drive-thru
+2026-04-02,168.14,Shopping,Home Depot supplies
+2026-04-02,223.54,Shopping,IKEA furniture
+2026-04-02,156.86,Shopping,Zara clothing
+2026-04-02,23.55,Subscriptions,Gym membership fee
