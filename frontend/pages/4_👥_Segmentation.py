@@ -6,10 +6,13 @@ import requests
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from frontend.components.sidebar import render_sidebar
+from frontend.components.sidebar import render_sidebar, apply_custom_theme
 from frontend.components.charts import cluster_scatter_chart, elbow_chart, COLORS
 
 st.set_page_config(page_title="Segmentation | Finance Analyzer", page_icon="👥", layout="wide")
+
+# Apply unified Finsight theme
+apply_custom_theme()
 
 st.markdown("""<style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');

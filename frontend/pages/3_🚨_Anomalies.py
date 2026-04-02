@@ -6,10 +6,13 @@ import requests
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from frontend.components.sidebar import render_sidebar
+from frontend.components.sidebar import render_sidebar, apply_custom_theme
 from frontend.components.charts import anomaly_timeline_chart, anomaly_score_distribution, COLORS
 
 st.set_page_config(page_title="Anomalies | Finance Analyzer", page_icon="🚨", layout="wide")
+
+# Apply unified Finsight theme
+apply_custom_theme()
 
 
 

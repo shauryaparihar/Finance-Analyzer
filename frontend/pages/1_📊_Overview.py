@@ -6,13 +6,16 @@ import requests
 import pandas as pd
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from frontend.components.sidebar import render_sidebar
+from frontend.components.sidebar import render_sidebar, apply_custom_theme
 from frontend.components.charts import (
     category_pie_chart, monthly_spending_chart, daily_spending_chart,
     model_comparison_chart, confusion_matrix_chart, COLORS,
 )
 
 st.set_page_config(page_title="Overview | Finance Analyzer", page_icon="📊", layout="wide")
+
+# Apply unified Finsight theme
+apply_custom_theme()
 
 API_BASE = "http://127.0.0.1:8000/api"
 
