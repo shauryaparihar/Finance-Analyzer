@@ -10,7 +10,9 @@ export async function uploadFile(file: File) {
   });
   
   if (!response.ok) {
-    throw new Error('Upload failed');
+    const errorData = await response.json().catch(() => ({ detail: 'Unknown error' }));
+    console.error('Backend error:', errorData);
+    throw new Error(errorData.detail || 'Upload failed');
   }
   
   return response.json();

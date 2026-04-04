@@ -69,17 +69,16 @@ async def upload_csv(
     if len(df) == 0:
         raise HTTPException(status_code=400, detail="CSV file is empty")
 
-    # Validate required columns
+    # Clean and check columns
+    df.columns = df.columns.str.lower().str.strip()
+    available_cols = set(df.columns)
     required_cols = {"date", "amount"}
-    available_cols = set(df.columns.str.lower())
+    
     if not required_cols.issubset(available_cols):
         raise HTTPException(
             status_code=400,
-            detail=f"CSV must contain columns: {required_cols}. Found: {list(df.columns)}"
+            detail=f"CSV must contain columns: {list(required_cols)}. Found: {list(df.columns)}. Make sure headers match exactly."
         )
-
-    # Normalize column names
-    df.columns = df.columns.str.lower().str.strip()
 
     # Create upload record
     upload = create_upload(db, file.filename, len(df))
