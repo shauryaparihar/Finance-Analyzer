@@ -105,3 +105,38 @@ Uploaded files should follow this structure:
 - **Backend**: FastAPI, SQLAlchemy, SQLite
 - **ML**: Scikit-Learn, XGBoost, Statsmodels
 - **Data**: Pandas, NumPy
+
+## Deployment
+
+This project is configured for deployment on **Render** (backend) + **Vercel** (frontend).
+
+### Backend — Render
+
+1. Push your repo to GitHub.
+2. Go to [render.com](https://render.com) → **New Web Service** → Connect your repo.
+3. Render will auto-detect `render.yaml`. If not, use these settings:
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+4. Set the following environment variables in the Render dashboard:
+   - `ENVIRONMENT` = `production`
+   - `FRONTEND_URL` = your Vercel URL (e.g. `https://finance-analyzer.vercel.app`)
+5. Deploy. Note down your Render URL (e.g. `https://finance-analyzer-api.onrender.com`).
+
+### Frontend — Vercel
+
+1. Go to [vercel.com](https://vercel.com) → **New Project** → Import your GitHub repo.
+2. Set the framework preset to **Vite**.
+3. Set the following environment variable:
+   - `VITE_API_URL` = your Render backend URL (e.g. `https://finance-analyzer-api.onrender.com`)
+4. Update the `vercel.json` rewrite destination to your Render URL.
+5. Deploy.
+
+### Environment Variables Reference
+
+| Variable | Where | Description |
+|----------|-------|-------------|
+| `ENVIRONMENT` | Render | Set to `production` to restrict CORS |
+| `FRONTEND_URL` | Render | Vercel domain for CORS allowlist |
+| `DATABASE_URL` | Render | DB connection string (defaults to SQLite) |
+| `VITE_API_URL` | Vercel | Backend URL for API calls |
+

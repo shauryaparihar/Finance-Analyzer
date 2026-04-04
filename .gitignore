@@ -55,6 +55,8 @@ Thumbs.db
 
 # Environment
 .env
+.env.local
+.env.production
 .flaskenv
 
 # IDEs
@@ -63,3 +65,10 @@ Thumbs.db
 *.sublime-project
 *.sublime-workspace
 node_modules
+
+# Build output
+dist/
+
+# Misc
+dealership_inventory_data.csv
+

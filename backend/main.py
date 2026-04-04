@@ -1,10 +1,12 @@
 """
 FastAPI application entry point.
 """
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.api.routes import router
 from backend.core.database import init_db
+from backend.core.config import FRONTEND_URL
 
 app = FastAPI(
     title="Personal Finance Analyzer & Expense Predictor",
@@ -12,10 +14,19 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS for Streamlit frontend
+# CORS — allow the deployed frontend + localhost for dev
+allowed_origins = [
+    FRONTEND_URL,
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+# In development, also allow all origins
+if os.getenv("ENVIRONMENT", "development") == "development":
+    allowed_origins = ["*"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,3 +55,4 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "healthy"}
+

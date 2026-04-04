@@ -7,8 +7,8 @@ from pathlib import Path
 # Base directory
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# Database
-DATABASE_URL = f"sqlite:///{BASE_DIR / 'finance_analyzer.db'}"
+# Database — use env var for cloud (e.g. PostgreSQL), fall back to SQLite for local dev
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'finance_analyzer.db'}")
 
 # File storage
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
@@ -31,9 +31,12 @@ MAX_TRAINING_SAMPLES = 10000
 MAX_TFIDF_FEATURES = 1000
 MAX_WORKERS = 2
 
-# API
-API_HOST = os.getenv("API_HOST", "127.0.0.1")
+# API — bind to 0.0.0.0 in production so containers can receive traffic
+API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
+
+# Frontend URL — used for CORS
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
 # Streamlit
 STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT", "8501"))
@@ -43,3 +46,4 @@ DEFAULT_CATEGORIES = [
     "Groceries", "Rent", "Utilities", "Entertainment", "Dining",
     "Transportation", "Healthcare", "Shopping", "Subscriptions", "Salary"
 ]
+
