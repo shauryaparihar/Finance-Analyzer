@@ -41,6 +41,7 @@ finance_analyzer.db
 data/uploads/
 data/large_transactions.csv
 data/large_transactions_balanced.csv
+data/data_small.csv
 
 # Logs & Temporary
 *.log
@@ -71,4 +72,10 @@ dist/
 
 # Misc
 dealership_inventory_data.csv
+git_tracked_files.txt
+
+# Internal design docs and AI tooling
+guidelines/
+src/imports/*.pdf
+src/imports/
 
