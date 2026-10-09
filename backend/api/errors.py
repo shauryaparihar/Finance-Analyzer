@@ -51,6 +51,13 @@ class AppError(Exception):
         self.headers = headers or {}
 
 
+def loggable_path(request: Request) -> str:
+    """The route template ("/api/budgets/{category}") when the request matched a route, so user-chosen path
+    values (a budget category name) never reach the logs; the raw path only for unmatched requests (404s)."""
+    route = request.scope.get("route")
+    return getattr(route, "path", None) or request.url.path
+
+
 def get_request_id(request: Request) -> str:
     return getattr(request.state, "request_id", "unknown")
 
@@ -83,7 +90,7 @@ def register_error_handling(app: FastAPI) -> None:
             logging.INFO,
             "request",
             method=request.method,
-            path=request.url.path,  # the path only: no query string and no body
+            path=loggable_path(request),  # the route template only: no path values, query string or body
             status=response.status_code,
             duration_ms=int((time.perf_counter() - started) * 1000),
             user_id=getattr(request.state, "user_id", None),
@@ -108,5 +115,5 @@ def register_error_handling(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception):
-        log_event(logger, logging.ERROR, "unhandled_error", path=request.url.path, exc_info=exc)
+        log_event(logger, logging.ERROR, "unhandled_error", path=loggable_path(request), exc_info=exc)
         return error_response(request, 500, "INTERNAL_ERROR", "Something went wrong. Please try again later.")

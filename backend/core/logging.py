@@ -82,8 +82,8 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info and record.exc_info[0] is not None:
             exc_type, exc, tb = record.exc_info
             entry["exc_type"] = exc_type.__name__
-            # Frames (file, line, function) always; the exception *message* only when allowed, because it can
-            # echo user data (for example a bad value) and is therefore off in production by default.
+            # Frames (file, line, function) always. The exception *message* only if explicitly enabled for local
+            # debugging (LOG_EXCEPTION_MESSAGES=true): it can echo user data, so it is off by default everywhere.
             frames = traceback.format_tb(tb)
             entry["stack"] = redact_text("".join(frames))[-2000:]
             if log_exception_messages():

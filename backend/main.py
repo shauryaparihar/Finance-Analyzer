@@ -41,7 +41,7 @@ async def lifespan(app: FastAPI):
     except Exception:
         log_event(logger, logging.ERROR, "startup_stale_upload_sweep_failed", exc_info=True)
     app.state.job_runner = JobRunner(settings.analysis_workers)
-    log_event(logger, logging.INFO, "app_started", workers=settings.analysis_workers)
+    log_event(logger, logging.INFO, "app_started", workers=settings.analysis_workers, environment=settings.environment)
     yield
     # Shutdown: stop taking work, let a running analysis finish, cancel queued ones and record that they were cancelled.
     app.state.job_runner.shutdown()

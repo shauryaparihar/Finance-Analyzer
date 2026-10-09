@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     analysis_workers: int = 2  # analyses that may run at once in this process
     max_active_jobs: int = 10  # queued + running analyses across all users before new uploads are refused
     log_level: str = "INFO"
-    log_exception_messages: bool | None = None  # None: on in development, off in production (messages can echo data)
+    # Exception messages can echo user data (a bad value, a SQL fragment), so they are never logged unless someone
+    # explicitly turns this on for local debugging. The same default applies in every environment.
+    log_exception_messages: bool = False
 
     # Upload limits
     max_upload_bytes: int = 5 * 1024 * 1024
@@ -83,9 +85,7 @@ def validate_runtime_settings(current: Settings = settings) -> None:
 
 
 def log_exception_messages(current: Settings = settings) -> bool:
-    if current.log_exception_messages is not None:
-        return current.log_exception_messages
-    return not is_production(current)
+    return current.log_exception_messages
 
 
 def cors_origins(current: Settings = settings) -> list[str]:

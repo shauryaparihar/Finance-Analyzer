@@ -14,8 +14,9 @@ SECRET_TEXT = "SECRETMERCHANT 99887"
 
 
 def _lines(caplog):
+    """The application's own log lines (not the HTTP test client's)."""
     formatter = JsonFormatter()
-    return [json.loads(formatter.format(r)) for r in caplog.records]
+    return [json.loads(formatter.format(r)) for r in caplog.records if r.name.startswith("finsight")]
 
 
 def _record(**fields):
@@ -62,21 +63,19 @@ def _exception_record(message):
         return logging.getLogger("finsight.test").makeRecord("finsight.test", logging.ERROR, __file__, 1, "job_crashed", (), sys.exc_info())
 
 
-def test_exception_messages_are_logged_in_development_but_not_in_production(monkeypatch):
-    record = _exception_record("bad value COFFEE SHOP 4.50")
-    monkeypatch.setattr(config.settings, "environment", "development")
-    dev = json.loads(JsonFormatter().format(record))
-    assert dev["exc_type"] == "ValueError" and "COFFEE SHOP" in dev["error"] and "test_logging.py" in dev["stack"]
-    monkeypatch.setattr(config.settings, "environment", "production")
-    prod = json.loads(JsonFormatter().format(record))
-    assert prod["exc_type"] == "ValueError" and "error" not in prod and "COFFEE SHOP" not in json.dumps(prod)
-    assert "test_logging.py" in prod["stack"]  # the stack frames stay: they are what you debug with
+@pytest.mark.parametrize("environment", ["development", "production", "test"])
+def test_exception_messages_are_never_logged_by_default_in_any_environment(monkeypatch, environment):
+    monkeypatch.setattr(config.settings, "environment", environment)
+    entry = json.loads(JsonFormatter().format(_exception_record("bad value COFFEE SHOP 4.50")))
+    assert entry["exc_type"] == "ValueError" and "error" not in entry and "COFFEE SHOP" not in json.dumps(entry)
+    assert "test_logging.py" in entry["stack"]  # the stack frames stay: they are what you debug with
 
 
-def test_the_message_setting_can_be_forced_either_way(monkeypatch):
-    monkeypatch.setattr(config.settings, "environment", "production")
+def test_the_exception_message_appears_only_when_explicitly_enabled_for_local_debugging(monkeypatch):
     monkeypatch.setattr(config.settings, "log_exception_messages", True)
-    assert "error" in json.loads(JsonFormatter().format(_exception_record("x")))
+    entry = json.loads(JsonFormatter().format(_exception_record("bad value COFFEE SHOP 4.50")))
+    assert "COFFEE SHOP" in entry["error"]
+    assert config.Settings().log_exception_messages is False  # the default
 
 
 def test_configure_logging_is_idempotent():
@@ -168,3 +167,14 @@ def test_an_unexpected_error_is_logged_with_the_request_id_and_hidden_from_the_c
     entry = [e for e in _lines(caplog) if e["event"] == "unhandled_error"][0]
     assert entry["request_id"] == response.headers["x-request-id"] and entry["exc_type"] == "RuntimeError"
     assert "pw@h" not in json.dumps(entry)
+
+
+def test_the_request_log_records_the_route_template_not_user_chosen_path_values(client, caplog):
+    caplog.set_level(logging.INFO)
+    headers = register_and_login(client)
+    client.put("/api/budgets/MY%20PRIVATE%20CATEGORY", headers=headers, json={"monthly_limit": 10})
+    client.delete("/api/budgets/MY%20PRIVATE%20CATEGORY", headers=headers)
+    text = json.dumps(_lines(caplog))
+    assert "PRIVATE" not in text and "CATEGORY" not in text
+    paths = {e["path"] for e in _lines(caplog) if e["event"] == "request"}
+    assert "/api/budgets/{category}" in paths
