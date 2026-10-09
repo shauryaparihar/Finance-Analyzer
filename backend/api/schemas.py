@@ -1,59 +1,80 @@
 """
 Pydantic schemas for API request/response validation.
 """
-from typing import Any, Dict, List, Optional
+import uuid
+from datetime import datetime
+from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr, Field
 
 
-class UploadResponse(BaseModel):
-    upload_id: str
+class RegisterRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=128)
+
+
+class UserOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    created_at: datetime
+
+
+class TokenOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds
+
+
+class UploadAccepted(BaseModel):
+    upload_id: uuid.UUID
     filename: str
-    num_rows: int
     status: str
+    rows_received: int
+    rows_dropped: int
     amount_convention: str
     message: str
+
+
+class UploadOut(BaseModel):
+    id: uuid.UUID
+    filename: str
+    row_count: int
+    status: str
+    error_summary: Optional[str] = None
+    created_at: datetime
+    completed_at: Optional[datetime] = None
+
+
+class UploadStatusOut(BaseModel):
+    upload_id: uuid.UUID
+    status: str
+    error_summary: Optional[str] = None
 
 
 class TransactionOut(BaseModel):
     id: int
     date: Optional[str] = None
     amount: float
-    category: Optional[str] = None
+    category: str
     description: Optional[str] = None
     predicted_category: Optional[str] = None
-    is_anomaly: bool = False
     anomaly_score: Optional[float] = None
-    cluster_label: Optional[int] = None
+    anomaly_rank: Optional[int] = None
 
 
-class UploadInfo(BaseModel):
-    id: str
-    filename: str
-    upload_date: str
-    num_rows: int
-    status: str
+class TransactionsPage(BaseModel):
+    upload_id: uuid.UUID
+    count: int
+    limit: int
+    offset: int
+    transactions: list[TransactionOut]
 
 
-class PipelineResultOut(BaseModel):
+class ResultOut(BaseModel):
     result_type: str
-    data: Dict[str, Any]
-
-
-class SummaryOut(BaseModel):
-    total_transactions: int
-    total_spending: float
-    total_income: float
-    avg_transaction: float
-    avg_monthly_spending: Optional[float] = 0.0
-    num_anomalies: Optional[int] = 0
-    top_category: Optional[str] = None
-    category_spending: Optional[List[Dict[str, Any]]] = None
-    category_breakdown: Optional[List[Dict[str, Any]]] = None  # Legacy support
-    monthly_spending: Optional[List[Dict[str, Any]]] = None
-    
-    # Legacy fields
-    median_transaction: Optional[float] = 0.0
-    max_transaction: Optional[float] = 0.0
-    min_transaction: Optional[float] = 0.0
-    std_transaction: Optional[float] = 0.0
+    data: Any

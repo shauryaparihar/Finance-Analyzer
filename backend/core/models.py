@@ -22,6 +22,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -57,6 +58,13 @@ class Upload(Base):
         CheckConstraint(_in("status", UPLOAD_STATUSES), name="ck_uploads_status"),
         # Not unique: a failed upload may be retried with the same file. Used to find a finished result to reuse.
         Index("ix_uploads_user_id_content_sha256", "user_id", "content_sha256"),
+        # At most one queued/processing upload per user, enforced by the database itself.
+        Index(
+            "uq_uploads_one_active_per_user",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status IN ('queued', 'processing')"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)

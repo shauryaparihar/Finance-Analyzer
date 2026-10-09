@@ -1,41 +1,55 @@
 """
 FastAPI application entry point.
 """
-import os
+import logging
+from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from backend.api.auth import router as auth_router
+from backend.api.errors import AppError, register_error_handling
 from backend.api.routes import router
-from backend.core.config import FRONTEND_URL
-from backend.core.database import engine
+from backend.core import repository as repo
+from backend.core.config import cors_origins, validate_runtime_settings
+from backend.core.database import SessionLocal, engine
+
+logger = logging.getLogger("finsight.api")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    validate_runtime_settings()  # raises in production if the configuration is unsafe
+    try:
+        with SessionLocal() as db:
+            stale = repo.fail_stale_uploads(db)
+        if stale:
+            logger.warning("stale_uploads_marked_failed count=%s", stale)
+    except Exception:
+        logger.exception("startup_stale_upload_sweep_failed")
+    yield
+
 
 app = FastAPI(
     title="Personal Finance Analyzer & Expense Predictor",
     description="ML-powered financial analysis API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
-# CORS — allow the deployed frontend + localhost for dev
-allowed_origins = [
-    FRONTEND_URL,
-    "http://localhost:5173",
-    "http://localhost:3000",
-]
-# In development, also allow all origins
-if os.getenv("ENVIRONMENT", "development") == "development":
-    allowed_origins = ["*"]
-
+# Exact browser origins only. Authentication uses a bearer token header, not cookies, so credentials stay off.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins(),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+    expose_headers=["X-Request-ID"],
 )
+register_error_handling(app)
 
-# Include API routes
+app.include_router(auth_router)
 app.include_router(router)
 
 
@@ -61,5 +75,5 @@ async def readyz():
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except Exception:
-        raise HTTPException(status_code=503, detail="Database unavailable")
+        raise AppError(503, "NOT_READY", "Database unavailable.")
     return {"status": "ready"}

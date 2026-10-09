@@ -8,7 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
 import pandas as pd
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,7 @@ from backend.core.models import AnalysisResult, Budget, Transaction, Upload, Use
 from backend.utils.helpers import safe_json_serializable
 
 TERMINAL_UPLOAD_STATUSES = {"completed", "partial", "failed"}
+ACTIVE_UPLOAD_STATUSES = ("queued", "processing")
 
 
 def _money(value: Any) -> Decimal:
@@ -35,6 +36,10 @@ def create_user(db: Session, email: str, password_hash: str) -> User:
     db.commit()
     db.refresh(user)
     return user
+
+
+def get_user(db: Session, user_id: uuid.UUID) -> Optional[User]:
+    return db.get(User, user_id)
 
 
 def get_user_by_email(db: Session, email: str) -> Optional[User]:
@@ -189,3 +194,21 @@ def delete_budget(db: Session, user_id: uuid.UUID, category: str) -> bool:
     result = db.execute(delete(Budget).where(Budget.user_id == user_id, Budget.category == category))
     db.commit()
     return result.rowcount > 0
+
+
+# --- active jobs ---
+
+def has_active_upload(db: Session, user_id: uuid.UUID) -> bool:
+    stmt = select(Upload.id).where(Upload.user_id == user_id, Upload.status.in_(ACTIVE_UPLOAD_STATUSES)).limit(1)
+    return db.scalar(stmt) is not None
+
+
+def fail_stale_uploads(db: Session) -> int:
+    """Mark uploads left queued/processing by a previous run as failed so users are not blocked forever."""
+    result = db.execute(
+        update(Upload)
+        .where(Upload.status.in_(ACTIVE_UPLOAD_STATUSES))
+        .values(status="failed", error_summary="Analysis was interrupted by a server restart.")
+    )
+    db.commit()
+    return result.rowcount

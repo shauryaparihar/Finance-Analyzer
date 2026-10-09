@@ -89,12 +89,23 @@ Uploaded files should follow this structure:
 
 ## API Endpoints
 
+All endpoints except register/login/health need `Authorization: Bearer <token>`.
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | /api/upload | Upload CSV and trigger ML pipeline |
-| GET | /api/status/{id} | Check pipeline processing status |
-| GET | /api/results/{id}/{type} | Retrieve specific ML results |
-| GET | /api/transactions/{id} | List all processed transactions |
+| POST | /api/auth/register | Create an account |
+| POST | /api/auth/login | Get a short-lived access token |
+| GET | /api/auth/me | Current user |
+| POST | /api/uploads | Upload a CSV (202); optional `amount_convention` |
+| GET | /api/uploads | List your uploads |
+| GET | /api/uploads/{id} | Upload details |
+| GET | /api/uploads/{id}/status | Processing status |
+| GET | /api/uploads/{id}/summary | Spending summary |
+| GET | /api/uploads/{id}/forecast | Spending forecast |
+| GET | /api/uploads/{id}/anomalies | Unusual transactions |
+| GET | /api/uploads/{id}/transactions | Transactions (`limit`, `offset`) |
+| DELETE | /api/uploads/{id} | Delete an upload and its data |
+| GET | /healthz, /readyz | Liveness and readiness |
 
 ## Project Structure
 

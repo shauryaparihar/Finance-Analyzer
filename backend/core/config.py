@@ -20,6 +20,16 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://finsight:finsight@localhost:5432/finsight"
     frontend_url: str = "http://localhost:5173"
 
+    # Authentication. In production JWT_SECRET must be set to a long random value (see validate_runtime_settings).
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 30
+
+    # Upload limits
+    max_upload_bytes: int = 5 * 1024 * 1024
+    max_upload_rows: int = 50_000
+    max_invalid_row_share: float = 0.20
+
     @field_validator("database_url", mode="before")
     @classmethod
     def _normalize_database_url(cls, value: str) -> str:
@@ -41,6 +51,37 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Only used outside production so local development works without extra setup. Never accepted in production.
+DEV_JWT_SECRET = "dev-only-insecure-secret-do-not-use-in-production"
+
+
+def is_production(current: Settings) -> bool:
+    return current.environment.lower() == "production"
+
+
+def effective_jwt_secret(current: Settings = settings) -> str:
+    return current.jwt_secret or DEV_JWT_SECRET
+
+
+def validate_runtime_settings(current: Settings = settings) -> None:
+    """Refuse to start in production with unsafe configuration."""
+    if not is_production(current):
+        return
+    secret = current.jwt_secret
+    if not secret or secret == DEV_JWT_SECRET or len(secret) < 32:
+        raise RuntimeError("JWT_SECRET must be set to a random value of at least 32 characters in production")
+    origin = current.frontend_url
+    if not origin.startswith("https://") or "*" in origin or "localhost" in origin:
+        raise RuntimeError("FRONTEND_URL must be the exact https:// origin of the frontend in production")
+
+
+def cors_origins(current: Settings = settings) -> list[str]:
+    """Exact allowed browser origins. Production allows only the configured frontend."""
+    origins = [current.frontend_url.rstrip("/")]
+    if not is_production(current):
+        origins += ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
+    return sorted(set(origins))
 
 # Database (PostgreSQL only; schema is owned by Alembic migrations)
 DATABASE_URL = settings.database_url
