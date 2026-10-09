@@ -33,6 +33,7 @@ from backend.core.database import SessionLocal, get_db
 from backend.core.models import Upload
 from backend.ml.anomaly import DISCLAIMER as ANOMALY_DISCLAIMER
 from backend.ml.pipeline import run_full_pipeline
+from backend.services.anomaly_refresh import refresh_anomaly_ranking
 from backend.services.budget_risk import compute_budget_risk
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
 from backend.utils.helpers import calculate_summary_stats
@@ -224,6 +225,7 @@ def get_anomalies(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: 
         expenses_scanned=summary.get("expenses_scanned"),
         reviewed=sum(i.review_status != "unreviewed" for i in items),
         confirmed=sum(i.review_status == "confirmed" for i in items),
+        decisions_outside_queue=repo.count_decisions_outside_queue(db, user_id, upload_id),
         dismissed=sum(i.review_status == "dismissed" for i in items),
         items=items,
         disclaimer=summary.get("disclaimer", ANOMALY_DISCLAIMER),
@@ -280,10 +282,15 @@ def correct_transaction_category(
     category = " ".join(body.category.split())
     if not category:
         raise AppError(422, "VALIDATION_ERROR", "Category cannot be blank.")
-    txn = repo.set_confirmed_category(db, user_id, transaction_id, category)
-    if txn is None:
+    existing = repo.get_owned_transaction(db, user_id, transaction_id)
+    if existing is None:
         raise AppError(404, "NOT_FOUND", "Transaction not found.")
-    # Rebuild the stored summary so charts and totals use the corrected category.
+    before = repo.effective_category(existing)
+    txn = repo.set_confirmed_category(db, user_id, transaction_id, category)
+    if repo.effective_category(txn) != before:
+        # The unusual-transaction ranking compares each expense with its category, so it must be recomputed.
+        refresh_anomaly_ranking(db, user_id, txn.upload_id)
+    # Rebuild the stored summary so charts, totals and the review-queue size use the corrected data.
     frame = repo.transactions_dataframe(db, user_id, txn.upload_id)
     repo.upsert_analysis_result(db, user_id, txn.upload_id, "summary", calculate_summary_stats(frame))
     return _transaction_out(txn)

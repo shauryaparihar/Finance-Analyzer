@@ -141,3 +141,110 @@ def test_the_segmentation_feature_is_gone(client):
     import importlib.util
 
     assert importlib.util.find_spec("backend.ml.segmentation") is None
+
+
+# --- the queue follows category corrections ---
+
+def _mislabelled_rent_upload(db, email="user@example.com"):
+    """40 ordinary grocery rows, 12 rent payments of about 1500, and one more 1500 rent payment filed under Groceries."""
+    rng_amounts = [58.0 + (i % 9) for i in range(40)]
+    rows = [{"date": pd.Timestamp("2025-01-01") + pd.Timedelta(days=i % 28), "amount": a, "description": f"market {i}", "category": "Groceries"} for i, a in enumerate(rng_amounts)]
+    rows += [{"date": pd.Timestamp("2025-01-01") + pd.Timedelta(days=30 + i), "amount": 1495.0 + i, "description": f"rent {i}", "category": "Rent"} for i in range(12)]
+    rows.append({"date": pd.Timestamp("2025-03-05"), "amount": 1500.0, "description": "rent mislabelled", "category": "Groceries"})
+    frame = pd.DataFrame(rows)
+    from backend.ml.anomaly import run_anomaly_detection
+
+    frame["effective_category"] = frame["category"]
+    result = run_anomaly_detection(frame)
+    columns = result.pop("row_columns")
+    for name in ("anomaly_score", "anomaly_rank", "anomaly_reason"):
+        frame[name] = columns[name].astype(object)
+    user = repo.get_user_by_email(db, email)
+    upload = repo.create_upload(db, user.id, "f.csv", uuid.uuid4().hex * 2, len(frame))
+    repo.store_transactions(db, user.id, upload.id, frame.drop(columns=["effective_category"]))
+    repo.upsert_analysis_result(db, user.id, upload.id, "anomaly", result)
+    return user, upload
+
+
+def _queue(client, headers, upload):
+    return client.get(f"/api/uploads/{upload.id}/anomalies", headers=headers).json()
+
+
+def test_correcting_a_category_removes_a_mislabelled_row_from_the_unusual_queue(client, db):
+    headers = register_and_login(client)
+    user, upload = _mislabelled_rent_upload(db)
+    before = _queue(client, headers, upload)
+    assert before["items"][0]["description"] == "rent mislabelled" and before["items"][0]["category"] == "Groceries"
+    assert "Groceries" in before["items"][0]["reason"]
+
+    target = _txn_id(db, user, upload, "rent mislabelled")
+    assert client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Rent"}).status_code == 200
+    after = _queue(client, headers, upload)
+    assert "rent mislabelled" not in [i["description"] for i in after["items"]]
+    # the stored per-transaction score and rank were refreshed too, not just the list
+    fixed = [t for t in repo.get_transactions(db, user.id, upload.id) if t.description == "rent mislabelled"][0]
+    db.refresh(fixed)
+    assert fixed.anomaly_rank is None and fixed.anomaly_score < 0.5
+
+
+def test_the_queue_size_in_the_summary_follows_the_correction(client, db):
+    headers = register_and_login(client)
+    user, upload = _mislabelled_rent_upload(db)
+    target = _txn_id(db, user, upload, "rent mislabelled")
+    client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Rent"})
+    queue = _queue(client, headers, upload)
+    summary = client.get(f"/api/uploads/{upload.id}/summary", headers=headers).json()["data"]
+    assert summary["review_queue_size"] == len(queue["items"])
+
+
+def test_review_decisions_survive_a_correction_and_come_back_with_the_row(client, db):
+    headers = register_and_login(client)
+    user, upload = _mislabelled_rent_upload(db)
+    target = _txn_id(db, user, upload, "rent mislabelled")
+    client.patch(f"/api/transactions/{target}/anomaly-review", headers=headers, json={"status": "confirmed"})
+
+    client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Rent"})
+    out = _queue(client, headers, upload)
+    assert out["decisions_outside_queue"] == 1 and out["confirmed"] == 0  # left the queue, decision kept
+
+    client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Groceries"})
+    back = _queue(client, headers, upload)
+    assert back["decisions_outside_queue"] == 0
+    assert [i["review_status"] for i in back["items"] if i["description"] == "rent mislabelled"] == ["confirmed"]
+
+
+def test_no_recomputation_when_the_category_does_not_change(client, db, monkeypatch):
+    import backend.api.routes as routes
+
+    calls = []
+    monkeypatch.setattr(routes, "refresh_anomaly_ranking", lambda *a: calls.append(a) or True)
+    headers = register_and_login(client)
+    user, upload = _mislabelled_rent_upload(db)
+    target = _txn_id(db, user, upload, "market 3")
+    client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Groceries"})  # same as before
+    assert calls == []
+    client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Dining"})
+    assert len(calls) == 1
+
+
+def test_a_denied_correction_leaves_the_queue_alone(client, db):
+    owner = register_and_login(client, "user@example.com")
+    intruder = register_and_login(client, "intruder@example.com")
+    user, upload = _mislabelled_rent_upload(db)
+    target = _txn_id(db, user, upload, "rent mislabelled")
+    before = _queue(client, owner, upload)
+    assert client.patch(f"/api/transactions/{target}/category", headers=intruder, json={"category": "Rent"}).status_code == 404
+    assert _queue(client, owner, upload) == before
+
+
+def test_uploads_without_a_ranked_queue_are_not_given_one_by_a_correction(client, db):
+    headers = register_and_login(client)
+    user = repo.get_user_by_email(db, "user@example.com")
+    upload = repo.create_upload(db, user.id, "f.csv", uuid.uuid4().hex * 2, 3)
+    frame = pd.DataFrame({"date": pd.date_range("2025-03-01", periods=3), "amount": [10.0, 20.0, 5000.0], "description": ["a", "b", "c"]})
+    repo.store_transactions(db, user.id, upload.id, frame)
+    repo.upsert_analysis_result(db, user.id, upload.id, "anomaly", {"status": "skipped", "reason": "too few"})
+    target = _txn_id(db, user, upload, "c")
+    assert client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Travel"}).status_code == 200
+    body = _queue(client, headers, upload)
+    assert body["status"] == "skipped" and body["items"] == []

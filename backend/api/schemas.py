@@ -126,5 +126,6 @@ class AnomaliesOut(BaseModel):
     reviewed: int = 0
     confirmed: int = 0
     dismissed: int = 0
+    decisions_outside_queue: int = 0  # earlier decisions on transactions that have since left the queue
     items: list[UnusualTransaction] = []
     disclaimer: str

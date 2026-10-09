@@ -8,7 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
 import pandas as pd
-from sqlalchemy import and_, delete, insert, or_, select, update
+from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -186,6 +186,7 @@ def transactions_dataframe(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID
     )
     rows = [
         {
+            "id": t.id,
             "date": pd.Timestamp(t.transaction_date) if t.transaction_date else pd.NaT,
             "amount": float(t.amount),
             "description": t.description,
@@ -194,7 +195,7 @@ def transactions_dataframe(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID
         }
         for t in db.scalars(stmt)
     ]
-    return pd.DataFrame(rows, columns=["date", "amount", "description", "effective_category", "is_anomaly"])
+    return pd.DataFrame(rows, columns=["id", "date", "amount", "description", "effective_category", "is_anomaly"])
 
 
 # --- analysis results ---
@@ -311,3 +312,38 @@ def set_anomaly_review(db: Session, user_id: uuid.UUID, transaction_id: int, sta
     db.commit()
     db.refresh(txn)
     return txn
+
+
+def update_anomaly_columns(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, ranked: pd.DataFrame) -> None:
+    """Overwrite score/rank/reason for the given transactions (index = transaction id) of an upload the user owns.
+    Review decisions (confirmed/dismissed) are deliberately left untouched."""
+    if get_upload(db, user_id, upload_id) is None:
+        raise LookupError("Upload not found")
+    rows = [
+        {
+            "id": int(txn_id),
+            "anomaly_score": None if pd.isna(r["anomaly_score"]) else float(r["anomaly_score"]),
+            "anomaly_rank": None if pd.isna(r["anomaly_rank"]) else int(r["anomaly_rank"]),
+            "anomaly_reason": None if pd.isna(r["anomaly_reason"]) else str(r["anomaly_reason"]),
+        }
+        for txn_id, r in ranked.iterrows()
+    ]
+    if rows:
+        db.execute(update(Transaction), rows)
+    db.commit()
+
+
+def count_decisions_outside_queue(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> int:
+    """Confirm/dismiss decisions on transactions that are no longer in the review queue."""
+    stmt = (
+        select(func.count())
+        .select_from(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(
+            Upload.id == upload_id,
+            Upload.user_id == user_id,
+            Transaction.anomaly_rank.is_(None),
+            Transaction.anomaly_review_status != "unreviewed",
+        )
+    )
+    return int(db.scalar(stmt) or 0)
