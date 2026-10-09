@@ -1,13 +1,14 @@
 """
 Expense categorization using classification models.
 """
-import numpy as np
+from typing import Any, Dict
+
 import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
+import numpy as np
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
-from typing import Dict, Any, Optional
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from sklearn.model_selection import train_test_split
 
 from backend.core.config import MODEL_DIR, RANDOM_STATE, TEST_SIZE
 
@@ -41,13 +42,12 @@ def train_categorizer(feature_matrix, labels, vectorizer) -> Dict[str, Any]:
         )
         # Try XGBoost
         try:
-            from xgboost import XGBClassifier
             from sklearn.preprocessing import LabelEncoder
+            from xgboost import XGBClassifier
             le = LabelEncoder()
             # Fit on all labels to avoid unseen class errors during transform
             le.fit(labels)
             y_train_encoded = le.transform(y_train)
-            y_test_encoded = le.transform(y_test)
             xgb_model = XGBClassifier(
                 n_estimators=100, random_state=RANDOM_STATE, use_label_encoder=False,
                 eval_metric="mlogloss", verbosity=0
@@ -113,7 +113,6 @@ def train_categorizer(feature_matrix, labels, vectorizer) -> Dict[str, Any]:
 
 def predict_categories(df, vectorizer, model) -> np.ndarray:
     """Predict categories for new data using saved model."""
-    from backend.ml.preprocessing import engineer_features
 
     tfidf_matrix = vectorizer.transform(df["description"].fillna(""))
 

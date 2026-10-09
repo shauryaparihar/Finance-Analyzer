@@ -1,10 +1,11 @@
 """
 Data cleaning and feature engineering for ML pipeline.
 """
-import pandas as pd
-import numpy as np
-from sklearn.feature_extraction.text import TfidfVectorizer
 from typing import Tuple
+
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -73,7 +74,7 @@ def prepare_for_classification(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray
     Uses TF-IDF on description + numerical features.
     Returns: (feature_matrix, labels, vectorizer)
     """
-    from backend.core.config import MAX_TRAINING_SAMPLES, MAX_TFIDF_FEATURES
+    from backend.core.config import MAX_TFIDF_FEATURES, MAX_TRAINING_SAMPLES
     
     # Filter to rows that have categories (for supervised learning)
     labeled_df = df[df["category"].notna() & (df["category"] != "Uncategorized")].copy()

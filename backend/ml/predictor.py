@@ -1,15 +1,16 @@
 """
 Expense prediction using regression and time series models.
 """
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.linear_model import LinearRegression
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error, r2_score
-from typing import Dict, Any
+from typing import Any, Dict
 
-from backend.core.config import MODEL_DIR, RANDOM_STATE, PREDICTION_DAYS
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+
+from backend.core.config import MODEL_DIR, PREDICTION_DAYS, RANDOM_STATE
 
 
 def train_predictor(daily_spending: pd.DataFrame) -> Dict[str, Any]:
@@ -118,8 +119,9 @@ def train_predictor(daily_spending: pd.DataFrame) -> Dict[str, Any]:
 def _try_arima(df: pd.DataFrame, y: np.ndarray) -> Dict[str, Any] | None:
     """Attempt ARIMA modeling. Returns None on failure."""
     try:
-        from statsmodels.tsa.arima.model import ARIMA
         import warnings
+
+        from statsmodels.tsa.arima.model import ARIMA
         warnings.filterwarnings("ignore")
 
         # Use last 80% for training ARIMA

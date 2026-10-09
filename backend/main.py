@@ -2,11 +2,13 @@
 FastAPI application entry point.
 """
 import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from backend.api.routes import router
-from backend.core.database import init_db
 from backend.core.config import FRONTEND_URL
+from backend.core.database import init_db
 
 app = FastAPI(
     title="Personal Finance Analyzer & Expense Predictor",

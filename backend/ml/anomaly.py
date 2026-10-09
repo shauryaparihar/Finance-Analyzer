@@ -1,14 +1,15 @@
 """
 Anomaly detection using Isolation Forest.
 """
-import pandas as pd
-import numpy as np
+from typing import Any, Dict
+
 import joblib
+import numpy as np
+import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import LabelEncoder
-from typing import Dict, Any
 
-from backend.core.config import MODEL_DIR, RANDOM_STATE, ANOMALY_CONTAMINATION
+from backend.core.config import ANOMALY_CONTAMINATION, MODEL_DIR, RANDOM_STATE
 
 
 def detect_anomalies(df: pd.DataFrame) -> Dict[str, Any]:

@@ -1,20 +1,27 @@
 """
 FastAPI API routes for the finance analyzer.
 """
-import pandas as pd
 import io
 import traceback
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, BackgroundTasks
-from sqlalchemy.orm import Session
 from typing import List
 
+import pandas as pd
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from backend.api.schemas import UploadInfo, UploadResponse
 from backend.core.database import (
-    get_db, init_db, create_upload, update_upload_status,
-    store_transactions, store_pipeline_result, get_upload,
-    get_transactions, get_pipeline_result, get_all_uploads,
+    create_upload,
+    get_all_uploads,
+    get_db,
+    get_pipeline_result,
+    get_transactions,
+    get_upload,
+    store_pipeline_result,
+    store_transactions,
+    update_upload_status,
 )
 from backend.ml.pipeline import run_full_pipeline
-from backend.api.schemas import UploadResponse, TransactionOut, UploadInfo
 
 router = APIRouter(prefix="/api", tags=["finance"])
 

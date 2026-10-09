@@ -38,9 +38,6 @@ API_PORT = int(os.getenv("API_PORT", "8000"))
 # Frontend URL — used for CORS
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-# Streamlit
-STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT", "8501"))
-
 # Categories
 DEFAULT_CATEGORIES = [
     "Groceries", "Rent", "Utilities", "Entertainment", "Dining",

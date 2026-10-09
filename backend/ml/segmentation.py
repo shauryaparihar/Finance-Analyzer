@@ -1,16 +1,17 @@
 """
 User/spending segmentation using K-Means clustering.
 """
-import pandas as pd
-import numpy as np
-import joblib
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import silhouette_score
-from sklearn.decomposition import PCA
-from typing import Dict, Any
+from typing import Any, Dict
 
-from backend.core.config import MODEL_DIR, RANDOM_STATE, MIN_CLUSTERS, MAX_CLUSTERS
+import joblib
+import numpy as np
+import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+
+from backend.core.config import MAX_CLUSTERS, MIN_CLUSTERS, MODEL_DIR, RANDOM_STATE
 
 
 def segment_spending(df: pd.DataFrame) -> Dict[str, Any]:

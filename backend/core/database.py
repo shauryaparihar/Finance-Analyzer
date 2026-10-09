@@ -3,9 +3,12 @@ SQLite database connection and ORM models via SQLAlchemy.
 """
 import json
 from datetime import datetime
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, Text, ForeignKey
-from sqlalchemy.orm import declarative_base, sessionmaker, relationship
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+
 from backend.core.config import DATABASE_URL
+from backend.utils.helpers import safe_json_serializable
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, echo=False)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -105,7 +108,6 @@ def store_transactions(db, upload_id: int, df):
     db.commit()
 
 
-from backend.utils.helpers import safe_json_serializable
 
 def store_pipeline_result(db, upload_id: int, result_type: str, result_data: dict):
     result = PipelineResult(

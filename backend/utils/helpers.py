@@ -1,9 +1,10 @@
 """
 Utility functions.
 """
-import pandas as pd
+from typing import Any, Dict
+
 import numpy as np
-from typing import Dict, Any
+import pandas as pd
 
 
 def format_currency(amount: float) -> str:
@@ -164,8 +165,8 @@ def format_anomaly_results(raw_res: Dict[str, Any], df: pd.DataFrame) -> Dict[st
         
         if len(all_labels) == len(expenses):
             # Include all anomalies
-            anomaly_indices = [i for i, l in enumerate(all_labels) if l == -1]
-            normal_indices = [i for i, l in enumerate(all_labels) if l != -1]
+            anomaly_indices = [i for i, label in enumerate(all_labels) if label == -1]
+            normal_indices = [i for i, label in enumerate(all_labels) if label != -1]
             
             # Sub-sample normal indices to max 500
             import random

@@ -1,25 +1,24 @@
 """
 ML Pipeline Orchestrator — runs the full analysis pipeline.
 """
-import pandas as pd
+import concurrent.futures
 import traceback
-from typing import Dict, Any
+from typing import Any, Dict
 
-from backend.ml.preprocessing import preprocess_full, prepare_for_classification, prepare_for_regression
-from backend.ml.categorizer import train_categorizer, predict_categories
-from backend.ml.predictor import train_predictor
+import pandas as pd
+
 from backend.ml.anomaly import detect_anomalies
+from backend.ml.categorizer import predict_categories, train_categorizer
+from backend.ml.predictor import train_predictor
+from backend.ml.preprocessing import prepare_for_classification, prepare_for_regression, preprocess_full
 from backend.ml.segmentation import segment_spending
 from backend.utils.helpers import (
-    calculate_summary_stats, 
-    safe_json_serializable,
-    format_prediction_results,
+    calculate_summary_stats,
     format_anomaly_results,
-    format_segmentation_results
+    format_prediction_results,
+    format_segmentation_results,
 )
 
-
-import concurrent.futures
 
 def _run_categorization(df):
     try:
@@ -128,7 +127,7 @@ def run_full_pipeline(df: pd.DataFrame) -> Dict[str, Any]:
             df["anomaly_score"] = 0.0
             
             # Using bool() to explicitly ensure boolean type to prevent pandas coercion issues
-            anomaly_flags = [bool(l == -1) for l in anom_res["all_labels"]]
+            anomaly_flags = [bool(label == -1) for label in anom_res["all_labels"]]
             df.loc[expenses.index, "is_anomaly"] = anomaly_flags
             df.loc[expenses.index, "anomaly_score"] = anom_res["all_scores"]
 

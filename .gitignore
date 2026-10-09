@@ -28,7 +28,6 @@ pip-delete-this-directory.txt
 # Node.js
 node_modules/
 .npm
-package-lock.json
 dist-ssr
 *.local
 
@@ -79,3 +78,11 @@ guidelines/
 src/imports/*.pdf
 src/imports/
 
+
+# Private tooling and study notes (never commit)
+.claude/
+docs/interview_notes.md
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+.coverage
