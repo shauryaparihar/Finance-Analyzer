@@ -89,3 +89,6 @@ coverage.xml
 
 # Downloaded training data (see backend/ml/prepare_training_data.py)
 data/training/
+
+# Private financial data: never commit (see data/private/README.txt)
+data/private/
