@@ -9,7 +9,7 @@ A production-quality, full-stack machine learning application that analyzes fina
 | Feature | Description | Model |
 |---------|-------------|-------|
 | Expense Categorization | Automatically classifies transactions into categories | Logistic Regression, Random Forest, XGBoost |
-| Spending Predictions | Forecasts next 30 days of spending | Linear Regression, Random Forest, ARIMA |
+| Spending Forecast | Forecasts the next 31 days; a lag-feature random forest is used only if it beats a seasonal-naive baseline in rolling backtests | Seasonal naive, Random Forest |
 | Anomaly Detection | Flags unusual or suspicious transactions | Isolation Forest |
 | Spending Segmentation | Groups monthly spending patterns | K-Means Clustering |
 | High Performance | Concurrency control processes 50,000+ row datasets in seconds | ThreadPoolExecutor |
@@ -110,7 +110,11 @@ All endpoints except register/login/health need `Authorization: Bearer <token>`.
 | GET | /api/uploads/{id} | Upload details |
 | GET | /api/uploads/{id}/status | Processing status |
 | GET | /api/uploads/{id}/summary | Spending summary |
-| GET | /api/uploads/{id}/forecast | Spending forecast |
+| GET | /api/uploads/{id}/forecast | Spending forecast with backtest scores vs a baseline |
+| GET | /api/uploads/{id}/budget-risk | Spent so far and projected month-end per budget |
+| GET | /api/budgets | Your monthly budgets |
+| PUT | /api/budgets/{category} | Create or update a monthly limit |
+| DELETE | /api/budgets/{category} | Remove a budget |
 | GET | /api/uploads/{id}/anomalies | Unusual transactions |
 | GET | /api/uploads/{id}/transactions | Transactions (`limit`, `offset`, `review_required`) |
 | PATCH | /api/transactions/{id}/category | Set your own category for a transaction |

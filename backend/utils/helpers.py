@@ -92,54 +92,6 @@ def safe_json_serializable(obj):
     return obj
 
 
-def format_prediction_results(raw_res: Dict[str, Any], df: pd.DataFrame) -> Dict[str, Any]:
-    """Format predictor output for the frontend."""
-    if "error" in raw_res:
-        return raw_res
-
-    # Calculate historical monthly data for the chart
-    historical = []
-    if "date" in df.columns:
-        expenses = df[df["amount"] > 0].copy()
-        expenses["month"] = pd.to_datetime(expenses["date"]).dt.to_period("M").astype(str)
-        monthly = expenses.groupby("month")["amount"].sum().reset_index()
-        for _, row in monthly.iterrows():
-            historical.append({
-                "date": str(row["month"]),
-                "amount": float(row["amount"]),
-                "type": "actual"
-            })
-
-    # Add future predictions to plot_data
-    plot_data = historical + [
-        {
-            "date": p["date"],
-            "amount": p["predicted_spending"],
-            "type": "forecast",
-            "lower": p["predicted_spending"] * 0.9,
-            "upper": p["predicted_spending"] * 1.1
-        }
-        for p in raw_res.get("future_predictions", [])
-    ]
-
-    # Model comparison as an array for the bar chart
-    comparison = [
-        {"model": name, "rmse": stats["rmse"], "r2": stats["r2"]}
-        for name, stats in raw_res.get("model_comparison", {}).items()
-    ]
-
-    return {
-        "plot_data": plot_data,
-        "comparison": sorted(comparison, key=lambda x: x["rmse"]),
-        "metrics": {
-            "next_month_prediction": raw_res.get("total_predicted_30d", 0),
-            "model_name": raw_res.get("best_model", "Predictive Engine"),
-            "model_description": "Time-series forecasting ensemble",
-            "top_predicted_category": "General Expenses" # Placeholder as category prediction isn't in raw_res
-        }
-    }
-
-
 def format_anomaly_results(raw_res: Dict[str, Any], df: pd.DataFrame) -> Dict[str, Any]:
     """Format anomaly detector output for the frontend."""
     if "error" in raw_res:

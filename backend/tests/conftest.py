@@ -98,7 +98,7 @@ def client(test_engine, db, monkeypatch):
             "status": "completed",
             "modules": {
                 "summary": {"total_transactions": len(df), "total_spending": float(df["amount"].clip(lower=0).sum())},
-                "prediction": {"plot_data": []},
+                "forecast": {"status": "skipped"},
                 "anomaly": {"anomalies": []},
             },
             "errors": [],

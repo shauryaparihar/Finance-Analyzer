@@ -3,6 +3,7 @@ Pydantic schemas for API request/response validation.
 """
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Optional
 
 from pydantic import BaseModel, EmailStr, Field
@@ -85,3 +86,14 @@ class ResultOut(BaseModel):
 
 class CategoryUpdate(BaseModel):
     category: str = Field(min_length=1, max_length=100)
+
+
+class BudgetIn(BaseModel):
+    monthly_limit: Decimal = Field(gt=0, le=100_000_000, decimal_places=2)
+
+
+class BudgetOut(BaseModel):
+    category: str
+    monthly_limit: float
+    created_at: datetime
+    updated_at: datetime

@@ -60,23 +60,6 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def prepare_for_regression(df: pd.DataFrame, freq: str = "D") -> pd.DataFrame:
-    """
-    Aggregate spending by time period for regression/time series.
-    freq: 'D' (daily), 'W' (weekly), 'M' (monthly)
-    """
-    expenses = df[df["amount"] > 0].copy()
-
-    if len(expenses) == 0 or "date" not in expenses.columns:
-        return pd.DataFrame(columns=["date", "total_spending"])
-
-    daily = expenses.groupby(pd.Grouper(key="date", freq=freq))["amount"].sum().reset_index()
-    daily.columns = ["date", "total_spending"]
-    daily = daily.fillna(0)
-
-    return daily
-
-
 def preprocess_full(df: pd.DataFrame) -> pd.DataFrame:
     """Run the full preprocessing pipeline."""
     print("  → Cleaning data...")

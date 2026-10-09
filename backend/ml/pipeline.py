@@ -9,13 +9,12 @@ from typing import Any, Dict
 import pandas as pd
 
 from backend.ml.anomaly import detect_anomalies
-from backend.ml.predictor import train_predictor
-from backend.ml.preprocessing import prepare_for_regression, preprocess_full
+from backend.ml.forecast import run_forecast
+from backend.ml.preprocessing import preprocess_full
 from backend.ml.segmentation import segment_spending
 from backend.utils.helpers import (
     calculate_summary_stats,
     format_anomaly_results,
-    format_prediction_results,
     format_segmentation_results,
 )
 
@@ -32,13 +31,13 @@ def _run_categorization(df, categorizer):
         return {"error": "Categorization failed"}
 
 
-def _run_prediction(df):
+def _run_forecast(df):
     try:
-        daily = prepare_for_regression(df, freq="D")
-        return train_predictor(daily)
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
+        return run_forecast(df)
+    except Exception:
+        logger.exception("forecast_failed")
+        return {"error": "Forecast failed"}
+
 
 def _run_anomaly(df):
     try:
@@ -91,7 +90,7 @@ def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         f_cat = executor.submit(_run_categorization, df, categorizer)
-        f_pred = executor.submit(_run_prediction, df)
+        f_pred = executor.submit(_run_forecast, df)
         f_anom = executor.submit(_run_anomaly, df)
         f_seg = executor.submit(_run_segmentation, df)
         
@@ -129,11 +128,11 @@ def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
             "note": "Model trained on synthetic data; low-confidence rows are left Uncategorized for your review.",
         }
 
-    # Process and assign prediction
+    # Process and assign forecast
     if "error" in pred_res:
-        results["errors"].append(f"Prediction failed: {pred_res['error']}")
+        results["errors"].append(f"Forecast failed: {pred_res['error']}")
     else:
-        results["modules"]["prediction"] = format_prediction_results(pred_res, df)
+        results["modules"]["forecast"] = pred_res
 
     # Process and assign anomaly
     if "error" in anom_res:

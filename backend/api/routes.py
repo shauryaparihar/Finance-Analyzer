@@ -7,13 +7,15 @@ import logging
 import uuid
 
 import pandas as pd
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Path, Query, Request, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.api.deps import get_current_user_id
 from backend.api.errors import AppError
 from backend.api.schemas import (
+    BudgetIn,
+    BudgetOut,
     CategoryUpdate,
     ResultOut,
     TransactionOut,
@@ -27,6 +29,7 @@ from backend.core.config import settings
 from backend.core.database import SessionLocal, get_db
 from backend.core.models import Upload
 from backend.ml.pipeline import run_full_pipeline
+from backend.services.budget_risk import compute_budget_risk
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
 from backend.utils.helpers import calculate_summary_stats
 
@@ -180,7 +183,7 @@ def get_summary(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uu
 
 @router.get("/uploads/{upload_id}/forecast", response_model=ResultOut)
 def get_forecast(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
-    return _result(db, user_id, upload_id, "prediction", "forecast")
+    return _result(db, user_id, upload_id, "forecast", "forecast")
 
 
 @router.get("/uploads/{upload_id}/anomalies", response_model=ResultOut)
@@ -249,3 +252,52 @@ def correct_transaction_category(
 def delete_upload(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
     if not repo.delete_upload(db, user_id, upload_id):
         raise _upload_not_found()
+
+
+@router.get("/uploads/{upload_id}/budget-risk")
+def get_budget_risk(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
+    """Current and projected month-end spending against your budgets, using each transaction's effective category."""
+    _owned_upload(db, user_id, upload_id)
+    budgets = {b.category: float(b.monthly_limit) for b in repo.list_budgets(db, user_id)}
+    transactions = repo.transactions_dataframe(db, user_id, upload_id)
+    forecast = repo.get_analysis_result(db, user_id, upload_id, "forecast")
+    return compute_budget_risk(transactions, budgets, forecast)
+
+
+def _budget_out(b) -> BudgetOut:
+    return BudgetOut(
+        category=b.category, monthly_limit=float(b.monthly_limit), created_at=b.created_at, updated_at=b.updated_at
+    )
+
+
+def _clean_budget_category(category: str) -> str:
+    cleaned = " ".join(category.split())
+    if not cleaned or len(cleaned) > 100:
+        raise AppError(422, "VALIDATION_ERROR", "Category must be between 1 and 100 characters.")
+    return cleaned
+
+
+@router.get("/budgets", response_model=list[BudgetOut])
+def list_budgets(db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
+    return [_budget_out(b) for b in repo.list_budgets(db, user_id)]
+
+
+@router.put("/budgets/{category}", response_model=BudgetOut)
+def put_budget(
+    body: BudgetIn,
+    category: str = Path(min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Create or replace the monthly limit for one category."""
+    return _budget_out(repo.upsert_budget(db, user_id, _clean_budget_category(category), body.monthly_limit))
+
+
+@router.delete("/budgets/{category}", status_code=204)
+def remove_budget(
+    category: str = Path(min_length=1, max_length=200),
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    if not repo.delete_budget(db, user_id, _clean_budget_category(category)):
+        raise AppError(404, "NOT_FOUND", "Budget not found.")
