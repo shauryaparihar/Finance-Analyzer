@@ -3,7 +3,9 @@ Unusual-transaction review: a ranked list of expenses worth a second look.
 
 This is NOT fraud detection. "Unusual" only means "far from this person's typical spending for the category".
 Most unusual transactions are legitimate (a holiday, a new laptop, an annual bill). The output is a short
-review queue sized to a human's capacity (REVIEW_CAPACITY), never a claim about ground truth.
+review queue: at most REVIEW_CAPACITY items, and only expenses at least MIN_DEVIATION_TO_FLAG robust deviations
+above their category's typical amount, so the queue is shorter (or empty) when nothing really stands out.
+It is never a claim about ground truth.
 
 How a score is built (all explainable):
   * Category-relative deviation: the amount's distance from the category's typical amount, measured with the
@@ -19,13 +21,12 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 
-from backend.core.config import RANDOM_STATE, REVIEW_CAPACITY
+from backend.core.config import MIN_DEVIATION_TO_FLAG, RANDOM_STATE, REVIEW_CAPACITY
 
 MIN_EXPENSES = 20
 MIN_CATEGORY_ROWS = 8  # smaller categories are compared with all spending instead
 MIN_SCALE = 0.25  # floor for the spread on the log scale, so near-constant categories do not explode
 MAX_Z = 6.0
-EXPLAIN_Z = 2.0  # show an amount-based reason when the deviation is at least this large
 
 METHODS = ("deviation", "isolation_forest", "blend")
 METHOD = "deviation"  # chosen from the evaluation in anomaly_eval.py (see docs/model_card.md)
@@ -84,14 +85,21 @@ def combined_score(z: pd.Series, isolation: pd.Series | None, method: str) -> pd
     raise ValueError(f"unknown method {method}")
 
 
-def _reason(amount: float, z: float, typical: float, scope: str) -> str:
-    if z >= EXPLAIN_Z:
-        return f"Amount {amount:,.2f} is about {amount / typical:.1f}x the typical {scope} amount ({typical:,.2f})."
-    return "Stands out from your usual pattern, though not mainly by amount."
+def _reason(amount: float, typical: float, scope: str) -> str:
+    return f"Amount {amount:,.2f} is about {amount / typical:.1f}x the typical {scope} amount ({typical:,.2f})."
 
 
-def rank_unusual(expenses: pd.DataFrame, method: str = METHOD, capacity: int = REVIEW_CAPACITY) -> pd.DataFrame:
-    """Score every expense and rank the top `capacity`. Needs date, amount (> 0) and effective_category."""
+def rank_unusual(
+    expenses: pd.DataFrame,
+    method: str = METHOD,
+    capacity: int = REVIEW_CAPACITY,
+    min_z: float | None = MIN_DEVIATION_TO_FLAG,
+) -> pd.DataFrame:
+    """Score every expense and rank up to `capacity` of them. Needs date, amount (> 0) and effective_category.
+
+    Only expenses with a deviation of at least `min_z` can be ranked (None disables the floor, which is used
+    only to compare methods in the evaluation). Every expense still receives a score.
+    """
     deviation = deviation_scores(expenses)
     # Isolation Forest is only fitted when a method needs it (the shipped method does not use it).
     isolation = isolation_scores(expenses, deviation["z"]) if method != "deviation" else None
@@ -104,11 +112,12 @@ def rank_unusual(expenses: pd.DataFrame, method: str = METHOD, capacity: int = R
             "amount": expenses["amount"].astype(float),
         }
     )
+    eligible = scored if min_z is None else scored[scored["z"] >= min_z]
     # The score is capped (MAX_Z), so ties among extreme rows are broken by the uncapped deviation, then the amount.
-    order = scored.sort_values(["anomaly_score", "z", "amount"], ascending=[False, False, False]).head(capacity)
+    order = eligible.sort_values(["anomaly_score", "z", "amount"], ascending=[False, False, False]).head(capacity)
     scored["anomaly_rank"] = pd.Series(range(1, len(order) + 1), index=order.index)
     scored["anomaly_reason"] = [
-        _reason(r.amount, r.z, r.typical, r.scope) if pd.notna(scored.at[i, "anomaly_rank"]) else None
+        _reason(r.amount, r.typical, r.scope) if pd.notna(scored.at[i, "anomaly_rank"]) else None
         for i, r in scored.iterrows()
     ]
     return scored[["anomaly_score", "anomaly_rank", "anomaly_reason"]]
@@ -120,6 +129,7 @@ def run_anomaly_detection(df: pd.DataFrame) -> dict[str, Any]:
     base = {
         "method": METHOD,
         "review_capacity": REVIEW_CAPACITY,
+        "min_deviation": MIN_DEVIATION_TO_FLAG,
         "expenses_scanned": int(len(expenses)),
         "min_expenses": MIN_EXPENSES,
         "disclaimer": DISCLAIMER,
@@ -132,10 +142,11 @@ def run_anomaly_detection(df: pd.DataFrame) -> dict[str, Any]:
             "row_columns": None,
         }
     ranked = rank_unusual(expenses)
+    flagged = int(ranked["anomaly_rank"].notna().sum())
     return {
         **base,
         "status": "completed",
-        "reason": None,
-        "flagged": int(ranked["anomaly_rank"].notna().sum()),
+        "reason": None if flagged else "No expense stood out from your usual spending for its category.",
+        "flagged": flagged,
         "row_columns": ranked,
     }

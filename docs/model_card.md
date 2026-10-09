@@ -103,10 +103,10 @@ A probe of 2,000 generated nonsense descriptions (random letters and numbers, wi
 **How it works (nothing is trained on uploaded data beyond robust statistics):**
 - Each expense is compared with the typical amount for its own category, using the median and the median absolute deviation of the log amount (robust to the very outliers we look for, and suited to right-skewed spending). Categories with fewer than 8 expenses are compared with all spending.
 - The score is that deviation, capped at 6 standard deviations and scaled to 0-1; ties among capped rows are ordered by the uncapped deviation.
-- The top **K = 10** (the review capacity) are stored with their rank and a plain-language reason, e.g. "Amount 2,196.33 is about 15.3x the typical Utilities amount (143.83)." The user marks each one **confirmed** (worth following up) or **dismissed** (expected).
-- At least 20 expenses are needed; otherwise the result is `skipped` with a reason. Money-in rows are never ranked. No contamination rate is assumed: the number flagged is the review capacity, not a claim about how many are "bad".
+- Only expenses at least **3 robust deviations** above their category's typical amount are eligible, and at most the top **K = 10** (the review capacity) of those are stored with their rank and a plain-language reason, e.g. "Amount 2,196.33 is about 15.3x the typical Utilities amount (143.83)." The user marks each one **confirmed** (worth following up) or **dismissed** (expected).
+- At least 20 expenses are needed; otherwise the result is `skipped` with a reason. Money-in rows are never ranked. No contamination rate is assumed: the queue can hold anywhere from 0 to 10 items, and when nothing stands out it is empty and says so, instead of being padded with ordinary expenses.
 
-**Evaluation (`python -m backend.ml.anomaly_eval`).** On 20 labelled synthetic fixtures (900 ordinary rows plus 10 injected spikes of 4-12x the category's typical amount, K = 10; with 10 injected per fixture precision@10 equals recall@10):
+**Evaluation (`python -m backend.ml.anomaly_eval`).** A) Method comparison, with no minimum deviation (the queue is always filled to K). On 20 labelled synthetic fixtures (900 ordinary rows plus 10 injected spikes of 4-12x the category's typical amount, K = 10; with 10 injected per fixture precision@10 equals recall@10):
 
 | Method | precision@10 | recall@10 |
 |---|---|---|
@@ -115,5 +115,17 @@ A probe of 2,000 generated nonsense descriptions (random letters and numbers, wi
 | 70/30 blend of both | 0.785 ± 0.115 | 0.785 ± 0.115 |
 
 The blend was never worse than the deviation score and was better in only 4 of 40 fixtures (+0.1 hit on average), so the simpler, fully explainable deviation score ships and Isolation Forest is kept only for this comparison.
+
+B) Minimum deviation for the shipped method. The first version always filled the queue to 10, so a file with one real outlier showed nine ordinary rows too. A minimum deviation fixes that at a cost in recall. Precision is over the items shown; "false alarms" is the average number flagged on 20 fixtures with **no** injected spikes (every flag there is wrong):
+
+| Minimum deviation | Precision (items shown) | Recall | Queue size | False alarms on clean data |
+|---|---|---|---|---|
+| none | 0.775 | 0.775 | 10.0 | 10.0 |
+| 2.0 | 0.775 | 0.775 | 10.0 | 9.9 |
+| 2.5 | 0.790 | 0.775 | 9.8 | 5.5 |
+| **3.0 (shipped)** | **0.891** | **0.725** | **8.2** | **1.9** |
+| 4.0 | 0.978 | 0.555 | 5.7 | 0.1 |
+
+3.0 is the conventional "three robust standard deviations" cut-off. It trades five points of recall for far fewer false alarms; it is a setting (`MIN_DEVIATION_TO_FLAG`), not a law, and a stricter value would miss more genuine spikes (especially in heavy-tailed categories such as Shopping).
 
 **Limits of this evaluation:** the injected anomalies are amount spikes, which is exactly what the shipped method looks for, so the numbers are optimistic and say nothing about other kinds of oddity (timing, duplicates, a new merchant) or about real fraud. Heavy-tailed categories (e.g. Shopping) produce legitimate large amounts that are hard to separate from injected ones. Real-world precision is unknown.

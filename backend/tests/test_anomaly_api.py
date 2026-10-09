@@ -248,3 +248,21 @@ def test_uploads_without_a_ranked_queue_are_not_given_one_by_a_correction(client
     assert client.patch(f"/api/transactions/{target}/category", headers=headers, json={"category": "Travel"}).status_code == 200
     body = _queue(client, headers, upload)
     assert body["status"] == "skipped" and body["items"] == []
+
+
+def test_the_pipeline_reports_an_empty_queue_when_nothing_stands_out(tiny_categorizer):
+    results = pipeline.run_full_pipeline(_frame(spikes=()), tiny_categorizer)
+    anomaly = results["modules"]["anomaly"]
+    assert anomaly["status"] == "completed" and anomaly["flagged"] == 0 and "No expense stood out" in anomaly["reason"]
+    assert results["modules"]["summary"]["review_queue_size"] == 0
+    assert results["processed_df"]["anomaly_rank"].isna().all()
+
+
+def test_an_empty_queue_is_reported_by_the_api_with_its_reason(client, db):
+    headers = register_and_login(client)
+    user = repo.get_user_by_email(db, "user@example.com")
+    upload = repo.create_upload(db, user.id, "f.csv", uuid.uuid4().hex * 2, 2)
+    repo.store_transactions(db, user.id, upload.id, pd.DataFrame({"date": pd.date_range("2025-03-01", periods=2), "amount": [10.0, 11.0]}))
+    repo.upsert_analysis_result(db, user.id, upload.id, "anomaly", {"status": "completed", "flagged": 0, "reason": "No expense stood out from your usual spending for its category.", "method": "deviation", "review_capacity": 10, "expenses_scanned": 2})
+    body = client.get(f"/api/uploads/{upload.id}/anomalies", headers=headers).json()
+    assert body["status"] == "completed" and body["items"] == [] and "No expense stood out" in body["reason"]

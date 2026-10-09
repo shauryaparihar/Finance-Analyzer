@@ -98,7 +98,8 @@ ARTIFACT_DIR = BASE_DIR / "backend" / "artifacts" / "categorizer"
 # ML Config
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
-REVIEW_CAPACITY = 10  # how many unusual transactions a person is asked to review per upload
+REVIEW_CAPACITY = 10  # the most unusual transactions a person is asked to review per upload
+MIN_DEVIATION_TO_FLAG = 3.0  # an expense must be at least this many robust deviations above its category's typical amount
 PREDICTION_DAYS = 31
 MAX_TRAINING_SAMPLES = 10000
 MAX_TFIDF_FEATURES = 1000

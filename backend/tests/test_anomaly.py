@@ -104,3 +104,70 @@ def test_the_shipped_method_finds_most_injected_spikes_and_beats_isolation_fores
     assert deviation["precision_at_k_mean"] >= 0.65 and deviation["recall_at_k_mean"] >= 0.65
     assert deviation["precision_at_k_mean"] > isolation["precision_at_k_mean"]
     assert an.METHOD == "deviation"
+
+
+# --- minimum deviation: the queue is not padded with ordinary rows ---
+
+def _ordinary_with_spikes(n_spikes):
+    rows = _baseline_rows()
+    rows += [("2025-03-%02d" % (d + 1), 600.0 + 100 * d, "Groceries") for d in range(n_spikes)]
+    return _expenses(rows)
+
+
+def test_nothing_unusual_means_an_empty_queue_with_an_explanation():
+    result = an.run_anomaly_detection(_expenses(_baseline_rows()))
+    assert result["status"] == "completed" and result["flagged"] == 0
+    assert result["row_columns"]["anomaly_rank"].isna().all()
+    assert "No expense stood out" in result["reason"]
+    assert result["row_columns"]["anomaly_score"].notna().all()  # every expense still has a score
+
+
+@pytest.mark.parametrize("n_spikes", [1, 2, 4])
+def test_the_queue_is_as_long_as_the_number_of_real_outliers_not_the_capacity(n_spikes):
+    ranked = an.rank_unusual(_ordinary_with_spikes(n_spikes))
+    flagged = ranked.dropna(subset=["anomaly_rank"])
+    assert len(flagged) == n_spikes < REVIEW_CAPACITY
+    assert (flagged["anomaly_reason"].str.contains("x the typical")).all()
+
+
+def test_ordinary_rows_are_never_ranked_even_when_capacity_is_left():
+    data = _ordinary_with_spikes(2)
+    ranked = an.rank_unusual(data)
+    ordinary = data.index[data["amount"] < 100]
+    assert ranked.loc[ordinary, "anomaly_rank"].isna().all() and ranked.loc[ordinary, "anomaly_reason"].isna().all()
+
+
+def test_every_flagged_row_clears_the_minimum_deviation_and_the_floor_can_be_changed():
+    data = _ordinary_with_spikes(3)
+    z = an.deviation_scores(data)["z"]
+    flagged = an.rank_unusual(data)["anomaly_rank"].notna()
+    assert (z[flagged] >= an.MIN_DEVIATION_TO_FLAG).all()
+    stricter = an.rank_unusual(data, min_z=float(z.max()) + 1)["anomaly_rank"].notna().sum()
+    unfloored = an.rank_unusual(data, min_z=None)["anomaly_rank"].notna().sum()
+    assert stricter == 0 and unfloored == REVIEW_CAPACITY
+
+
+def test_a_row_exactly_at_the_floor_is_flagged_and_just_below_is_not():
+    data = _ordinary_with_spikes(1)
+    z = an.deviation_scores(data)["z"]
+    spike = z.idxmax()
+    assert an.rank_unusual(data, min_z=float(z[spike]))["anomaly_rank"][spike] == 1
+    assert pd.isna(an.rank_unusual(data, min_z=float(z[spike]) + 1e-9)["anomaly_rank"][spike])
+
+
+def test_the_floor_cuts_false_alarms_on_clean_data_without_losing_the_spikes_it_should_keep():
+    from backend.ml.anomaly_eval import false_alarms_on_clean_data
+
+    seeds = range(8)
+    assert false_alarms_on_clean_data(min_z=None, seeds=seeds) == REVIEW_CAPACITY
+    assert false_alarms_on_clean_data(min_z=an.MIN_DEVIATION_TO_FLAG, seeds=seeds) < 4
+    floored = evaluate("deviation", seeds=seeds, min_z=an.MIN_DEVIATION_TO_FLAG)
+    unfloored = evaluate("deviation", seeds=seeds, min_z=None)
+    assert floored["precision_at_k_mean"] > unfloored["precision_at_k_mean"]
+    assert floored["recall_at_k_mean"] >= 0.6  # the documented cost is a few points of recall
+    assert floored["queue_size_mean"] < REVIEW_CAPACITY
+
+
+def test_precision_is_computed_over_the_items_actually_shown():
+    assert precision_recall_at_k([True, True, False], total_true=4, k=10) == (pytest.approx(2 / 3), pytest.approx(2 / 4))
+    assert precision_recall_at_k([], total_true=3, k=10) == (0.0, 0.0)

@@ -11,7 +11,7 @@ works as designed, not that it finds real-world problems.
 import numpy as np
 import pandas as pd
 
-from backend.core.config import REVIEW_CAPACITY
+from backend.core.config import MIN_DEVIATION_TO_FLAG, REVIEW_CAPACITY
 from backend.ml.anomaly import METHODS, rank_unusual
 
 # category -> (typical amount, spread of log-amount)
@@ -52,40 +52,67 @@ def make_labelled_fixture(seed: int, n_normal: int = 900, n_anomalies: int = 10)
 
 
 def precision_recall_at_k(ranked_is_true: list[bool], total_true: int, k: int) -> tuple[float, float]:
-    """Precision@K = share of the top K that are true anomalies; recall@K = share of all true anomalies in the top K."""
+    """Precision@K = share of the items shown (at most K) that are true anomalies; recall@K = share of all true
+    anomalies that were shown. If fewer than K items are shown, precision is over the items actually shown."""
     top = ranked_is_true[:k]
     hits = sum(top)
-    return hits / k if k else 0.0, hits / total_true if total_true else 0.0
+    return (hits / len(top) if top else 0.0), (hits / total_true if total_true else 0.0)
 
 
-def evaluate(method: str, seeds=range(20), k: int = REVIEW_CAPACITY, n_anomalies: int = 10) -> dict:
-    precisions, recalls = [], []
+def evaluate(
+    method: str, seeds=range(20), k: int = REVIEW_CAPACITY, n_anomalies: int = 10, min_z: float | None = None
+) -> dict:
+    """Mean precision@K / recall@K over labelled fixtures. min_z=None compares methods with no minimum deviation."""
+    precisions, recalls, sizes = [], [], []
     for seed in seeds:
         data = make_labelled_fixture(seed, n_anomalies=n_anomalies)
-        ranked = rank_unusual(data, method=method, capacity=k)
+        ranked = rank_unusual(data, method=method, capacity=k, min_z=min_z)
         order = ranked.dropna(subset=["anomaly_rank"]).sort_values("anomaly_rank").index
         precision, recall = precision_recall_at_k(list(data.loc[order, "is_injected"]), int(data["is_injected"].sum()), k)
         precisions.append(precision)
         recalls.append(recall)
+        sizes.append(len(order))
     return {
         "method": method,
         "k": k,
+        "min_z": min_z,
         "fixtures": len(list(seeds)),
         "injected_per_fixture": n_anomalies,
         "precision_at_k_mean": float(np.mean(precisions)),
         "precision_at_k_std": float(np.std(precisions)),
         "recall_at_k_mean": float(np.mean(recalls)),
         "recall_at_k_std": float(np.std(recalls)),
+        "queue_size_mean": float(np.mean(sizes)),
     }
+
+
+def false_alarms_on_clean_data(min_z: float | None, seeds=range(20)) -> float:
+    """Average number of items flagged when nothing was injected, i.e. every flagged item is a false alarm."""
+    flagged = [
+        int(rank_unusual(make_labelled_fixture(seed, n_anomalies=0), min_z=min_z)["anomaly_rank"].notna().sum())
+        for seed in seeds
+    ]
+    return float(np.mean(flagged))
 
 
 def main() -> None:
     print(f"Labelled synthetic fixtures: 900 normal rows + 10 injected spikes each, K={REVIEW_CAPACITY}, 20 seeds")
+    print("A) method comparison, no minimum deviation (queue always filled to K)")
     for method in METHODS:
         r = evaluate(method)
         print(
-            f"{method:17s} precision@{r['k']} {r['precision_at_k_mean']:.3f} +/- {r['precision_at_k_std']:.3f}   "
+            f"  {method:17s} precision@{r['k']} {r['precision_at_k_mean']:.3f} +/- {r['precision_at_k_std']:.3f}   "
             f"recall@{r['k']} {r['recall_at_k_mean']:.3f} +/- {r['recall_at_k_std']:.3f}"
+        )
+    print("B) minimum deviation for the shipped method (deviation): precision of items shown, recall, queue size,")
+    print("   and items flagged on 20 fixtures with NO injected spikes (all false alarms)")
+    for min_z in (None, 2.0, 2.5, MIN_DEVIATION_TO_FLAG, 4.0):
+        r = evaluate("deviation", min_z=min_z)
+        label = "none" if min_z is None else f"{min_z:.1f}"
+        marker = "  <- shipped" if min_z == MIN_DEVIATION_TO_FLAG else ""
+        print(
+            f"  min deviation {label:>4}: precision {r['precision_at_k_mean']:.3f}  recall {r['recall_at_k_mean']:.3f}  "
+            f"queue {r['queue_size_mean']:.1f}  false alarms on clean data {false_alarms_on_clean_data(min_z):.1f}{marker}"
         )
 
 
