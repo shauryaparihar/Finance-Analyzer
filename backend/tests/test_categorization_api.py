@@ -112,6 +112,7 @@ def test_uploads_are_refused_while_the_model_is_unavailable(client, monkeypatch)
 def test_readyz_reports_the_model_and_fails_without_it(test_engine, monkeypatch):
     monkeypatch.setattr(main, "engine", test_engine)
     monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="v-test"), raising=False)
+    monkeypatch.setattr(main.app.state, "job_runner", SimpleNamespace(is_running=True), raising=False)
     ready = TestClient(main.app).get("/readyz")
     assert ready.status_code == 200 and ready.json()["model_version"] == "v-test"
 

@@ -5,6 +5,7 @@ Stack traces, SQL text and raw exception strings stay in the server log, never i
 """
 import logging
 import re
+import time
 import uuid
 from typing import Any, Optional
 
@@ -12,6 +13,8 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from backend.core.logging import log_event, request_id_var
 
 logger = logging.getLogger("finsight.api")
 
@@ -71,8 +74,20 @@ def register_error_handling(app: FastAPI) -> None:
     async def request_id_middleware(request: Request, call_next):
         incoming = request.headers.get(REQUEST_ID_HEADER, "")
         request.state.request_id = incoming if _SAFE_REQUEST_ID.match(incoming) else uuid.uuid4().hex
+        request_id_var.set(request.state.request_id)
+        started = time.perf_counter()
         response = await call_next(request)
         response.headers[REQUEST_ID_HEADER] = request.state.request_id
+        log_event(
+            logger,
+            logging.INFO,
+            "request",
+            method=request.method,
+            path=request.url.path,  # the path only: no query string and no body
+            status=response.status_code,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            user_id=getattr(request.state, "user_id", None),
+        )
         return response
 
     @app.exception_handler(AppError)
@@ -93,5 +108,5 @@ def register_error_handling(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception):
-        logger.error("unhandled_error request_id=%s path=%s", get_request_id(request), request.url.path, exc_info=exc)
+        log_event(logger, logging.ERROR, "unhandled_error", path=request.url.path, exc_info=exc)
         return error_response(request, 500, "INTERNAL_ERROR", "Something went wrong. Please try again later.")

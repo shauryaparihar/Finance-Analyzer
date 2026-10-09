@@ -25,6 +25,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
 
+    # Analysis jobs and logging
+    analysis_workers: int = 2  # analyses that may run at once in this process
+    max_active_jobs: int = 10  # queued + running analyses across all users before new uploads are refused
+    log_level: str = "INFO"
+    log_exception_messages: bool | None = None  # None: on in development, off in production (messages can echo data)
+
     # Upload limits
     max_upload_bytes: int = 5 * 1024 * 1024
     max_upload_rows: int = 50_000
@@ -74,6 +80,12 @@ def validate_runtime_settings(current: Settings = settings) -> None:
     origin = current.frontend_url
     if not origin.startswith("https://") or "*" in origin or "localhost" in origin:
         raise RuntimeError("FRONTEND_URL must be the exact https:// origin of the frontend in production")
+
+
+def log_exception_messages(current: Settings = settings) -> bool:
+    if current.log_exception_messages is not None:
+        return current.log_exception_messages
+    return not is_production(current)
 
 
 def cors_origins(current: Settings = settings) -> list[str]:

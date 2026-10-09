@@ -156,12 +156,12 @@ def test_stale_jobs_are_failed_on_startup_so_users_are_not_locked_out(db):
 
 
 def test_pipeline_crash_marks_upload_failed_without_leaking_details(client, monkeypatch):
-    import backend.api.routes as routes
+    from backend.services import analysis_job
 
-    def boom(df):
+    def boom(df, categorizer, observer=None):
         raise RuntimeError("secret internal detail postgresql://user:pw@host/db")
 
-    monkeypatch.setattr(routes, "run_full_pipeline", boom)
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", boom)
     headers = register_and_login(client)
     upload_id = _upload(client, headers).json()["upload_id"]
     status = client.get(f"/api/uploads/{upload_id}/status", headers=headers)

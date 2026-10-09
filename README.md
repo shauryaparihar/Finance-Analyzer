@@ -104,10 +104,10 @@ All endpoints except register/login/health need `Authorization: Bearer <token>`.
 | POST | /api/auth/register | Create an account |
 | POST | /api/auth/login | Get a short-lived access token |
 | GET | /api/auth/me | Current user |
-| POST | /api/uploads | Upload a CSV (202); optional `amount_convention` |
+| POST | /api/uploads | Upload a CSV: 202 queued, or 200 `reused` if you already analysed the same file; optional `amount_convention` |
 | GET | /api/uploads | List your uploads |
 | GET | /api/uploads/{id} | Upload details |
-| GET | /api/uploads/{id}/status | Processing status |
+| GET | /api/uploads/{id}/status | Overall status plus per-module status, timing and errors |
 | GET | /api/uploads/{id}/summary | Spending summary |
 | GET | /api/uploads/{id}/forecast | Spending forecast with backtest scores vs a baseline |
 | GET | /api/uploads/{id}/budget-risk | Spent so far and projected month-end per budget |
@@ -169,3 +169,11 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 | `DATABASE_URL` | Render | PostgreSQL connection string (`postgresql+psycopg://...`; defaults to the local Docker database) |
 | `VITE_API_URL` | Vercel | Backend URL for API calls |
 
+
+
+## Operations
+
+- Logs are one JSON object per line on stdout (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.
+- `GET /healthz` is liveness; `GET /readyz` checks the database, the categorizer model and the job runner.
+- Analyses run in a bounded in-process worker pool (`ANALYSIS_WORKERS`, default 2); a restart interrupts a running analysis and the next start marks it failed. See `.env.example` for the settings.
+- `python -m backend.services.ops_report` prints aggregate job, failure, timing, model-version and forecast-method counts from the database.

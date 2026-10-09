@@ -12,10 +12,22 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from backend.core.models import AnalysisResult, Budget, Transaction, Upload, User
+from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, User
 from backend.utils.helpers import safe_json_serializable
 
 TERMINAL_UPLOAD_STATUSES = {"completed", "partial", "failed"}
+# An upload only moves forward: queued -> processing -> completed | partial | failed (queued may also fail directly).
+ALLOWED_TRANSITIONS = {
+    "queued": {"processing", "failed"},
+    "processing": {"completed", "partial", "failed"},
+    "completed": set(),
+    "partial": set(),
+    "failed": set(),
+}
+
+
+class InvalidStatusTransition(ValueError):
+    pass
 ACTIVE_UPLOAD_STATUSES = ("queued", "processing")
 
 
@@ -48,8 +60,21 @@ def get_user_by_email(db: Session, email: str) -> Optional[User]:
 
 # --- uploads ---
 
-def create_upload(db: Session, user_id: uuid.UUID, filename: str, content_sha256: str, row_count: int) -> Upload:
-    upload = Upload(user_id=user_id, original_filename=filename, content_sha256=content_sha256, row_count=row_count)
+def create_upload(
+    db: Session,
+    user_id: uuid.UUID,
+    filename: str,
+    content_sha256: str,
+    row_count: int,
+    amount_convention: Optional[str] = None,
+) -> Upload:
+    upload = Upload(
+        user_id=user_id,
+        original_filename=filename,
+        content_sha256=content_sha256,
+        row_count=row_count,
+        amount_convention=amount_convention,
+    )
     db.add(upload)
     db.commit()
     db.refresh(upload)
@@ -73,6 +98,8 @@ def update_upload_status(
     upload = get_upload(db, user_id, upload_id)
     if upload is None:
         return False
+    if status not in ALLOWED_TRANSITIONS.get(upload.status, set()):
+        raise InvalidStatusTransition(f"{upload.status} -> {status}")
     upload.status = status
     upload.error_summary = error_summary
     if status in TERMINAL_UPLOAD_STATUSES:
@@ -265,15 +292,122 @@ def has_active_upload(db: Session, user_id: uuid.UUID) -> bool:
     return db.scalar(stmt) is not None
 
 
-def fail_stale_uploads(db: Session) -> int:
-    """Mark uploads left queued/processing by a previous run as failed so users are not blocked forever."""
-    result = db.execute(
+def fail_stale_uploads(db: Session, reason: str = "Analysis was interrupted by a server restart.") -> int:
+    """Mark uploads left queued/processing as failed, and close their open module runs, so users are never
+    blocked by (or shown) a job that is no longer running. Only valid while a single application instance runs."""
+    stale_ids = list(db.scalars(select(Upload.id).where(Upload.status.in_(ACTIVE_UPLOAD_STATUSES))))
+    if not stale_ids:
+        return 0
+    now = datetime.now(timezone.utc)
+    db.execute(
         update(Upload)
-        .where(Upload.status.in_(ACTIVE_UPLOAD_STATUSES))
-        .values(status="failed", error_summary="Analysis was interrupted by a server restart.")
+        .where(Upload.id.in_(stale_ids))
+        .values(status="failed", error_summary=reason, completed_at=now)
+    )
+    db.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.upload_id.in_(stale_ids), AnalysisRun.status.in_(("pending", "running")))
+        .values(status="failed", error_code="INTERRUPTED", error_message=reason, finished_at=now)
     )
     db.commit()
-    return result.rowcount
+    return len(stale_ids)
+
+
+def count_active_uploads(db: Session) -> int:
+    """Queued + running analyses across all users (used to refuse new work when the server is saturated)."""
+    return int(db.scalar(select(func.count()).select_from(Upload).where(Upload.status.in_(ACTIVE_UPLOAD_STATUSES))) or 0)
+
+
+def find_reusable_upload(
+    db: Session, user_id: uuid.UUID, content_sha256: str, amount_convention: str
+) -> Optional[Upload]:
+    """This user's newest completed upload of the same file analysed with the same sign convention."""
+    stmt = (
+        select(Upload)
+        .where(
+            Upload.user_id == user_id,
+            Upload.content_sha256 == content_sha256,
+            Upload.amount_convention == amount_convention,
+            Upload.status == "completed",
+        )
+        .order_by(Upload.created_at.desc())
+        .limit(1)
+    )
+    return db.scalar(stmt)
+
+
+# --- per-module runs ---
+
+def create_runs(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> None:
+    """Persist one pending run per module before any work starts."""
+    if get_upload(db, user_id, upload_id) is None:
+        raise LookupError("Upload not found")
+    db.execute(insert(AnalysisRun), [{"upload_id": upload_id, "module": m, "status": "pending"} for m in MODULES])
+    db.commit()
+
+
+def _owned_upload_ids(user_id: uuid.UUID, upload_id: uuid.UUID):
+    return select(Upload.id).where(Upload.id == upload_id, Upload.user_id == user_id)
+
+
+def start_run(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, module: str) -> None:
+    db.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.upload_id.in_(_owned_upload_ids(user_id, upload_id)), AnalysisRun.module == module)
+        .values(status="running", started_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+
+
+def finish_run(
+    db: Session,
+    user_id: uuid.UUID,
+    upload_id: uuid.UUID,
+    module: str,
+    status: str,
+    duration_ms: Optional[int] = None,
+    model_version: Optional[str] = None,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+) -> None:
+    db.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.upload_id.in_(_owned_upload_ids(user_id, upload_id)), AnalysisRun.module == module)
+        .values(
+            status=status,
+            duration_ms=duration_ms,
+            model_version=model_version,
+            error_code=error_code,
+            error_message=error_message,
+            finished_at=datetime.now(timezone.utc),
+        )
+    )
+    db.commit()
+
+
+def close_open_runs(
+    db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, status: str, error_code: str, error_message: str
+) -> None:
+    """Finish any run still pending/running (for example when preprocessing failed before they could start)."""
+    db.execute(
+        update(AnalysisRun)
+        .where(
+            AnalysisRun.upload_id.in_(_owned_upload_ids(user_id, upload_id)),
+            AnalysisRun.status.in_(("pending", "running")),
+        )
+        .values(status=status, error_code=error_code, error_message=error_message, finished_at=datetime.now(timezone.utc))
+    )
+    db.commit()
+
+
+def list_runs(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> list[AnalysisRun]:
+    stmt = (
+        select(AnalysisRun)
+        .join(Upload, Upload.id == AnalysisRun.upload_id)
+        .where(Upload.id == upload_id, Upload.user_id == user_id)
+        .order_by(AnalysisRun.id)
+    )
+    return list(db.scalars(stmt))
 
 
 # --- unusual-transaction review ---

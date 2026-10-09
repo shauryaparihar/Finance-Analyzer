@@ -3,7 +3,7 @@ Shared FastAPI dependencies, mainly "who is the logged-in user?".
 """
 import uuid
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -27,6 +27,7 @@ def _unauthenticated(code: str) -> AppError:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     db: Session = Depends(get_db),
 ) -> User:
@@ -39,6 +40,7 @@ def get_current_user(
     user = repo.get_user(db, user_id)
     if user is None or not user.is_active:
         raise _unauthenticated("TOKEN_INVALID")
+    request.state.user_id = str(user.id)  # read by the request log
     return user
 
 

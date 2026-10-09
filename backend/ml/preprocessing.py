@@ -32,10 +32,7 @@ def parse_dates(df: pd.DataFrame) -> pd.DataFrame:
     if "date" in df.columns:
         df["date"] = pd.to_datetime(df["date"], format="mixed", dayfirst=False, errors="coerce")
         # Drop rows where date couldn't be parsed
-        initial_len = len(df)
         df = df.dropna(subset=["date"])
-        if len(df) < initial_len:
-            print(f"  ⚠ Dropped {initial_len - len(df)} rows with unparseable dates")
 
     return df.reset_index(drop=True)
 
@@ -62,14 +59,6 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def preprocess_full(df: pd.DataFrame) -> pd.DataFrame:
     """Run the full preprocessing pipeline."""
-    print("  → Cleaning data...")
     df = clean_data(df)
-    print(f"    {len(df)} rows after cleaning")
-
-    print("  → Parsing dates...")
     df = parse_dates(df)
-
-    print("  → Engineering features...")
-    df = engineer_features(df)
-
-    return df
+    return engineer_features(df)

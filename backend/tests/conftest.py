@@ -83,6 +83,9 @@ def client(test_engine, db, monkeypatch):
     import backend.main as main
     from backend.core.database import get_db
     from backend.main import app
+    from backend.ml.pipeline import ModuleOutcome
+    from backend.services import analysis_job
+    from backend.services.jobs import SyncJobRunner
 
     factory = sessionmaker(bind=test_engine)
 
@@ -93,10 +96,15 @@ def client(test_engine, db, monkeypatch):
         finally:
             session.close()
 
-    def fake_pipeline(df, categorizer):
+    def fake_pipeline(df, categorizer, observer=None):
+        for module in ("categorization", "forecast", "anomaly", "summary"):
+            if observer:
+                observer.on_start(module)
+                observer.on_finish(module, ModuleOutcome("completed", model_version="fake"), 1)
         return {
             "status": "completed",
             "modules": {
+                "categorization": {"model_version": categorizer.version, "auto_categorized": 1, "needs_review": 0, "rows": len(df)},
                 "summary": {"total_transactions": len(df), "total_spending": float(df["amount"].clip(lower=0).sum())},
                 "forecast": {"status": "skipped"},
                 "anomaly": {"anomalies": []},
@@ -106,8 +114,9 @@ def client(test_engine, db, monkeypatch):
         }
 
     monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="test-model", threshold=0.5), raising=False)
+    monkeypatch.setattr(main.app.state, "job_runner", SyncJobRunner(), raising=False)
     monkeypatch.setattr(routes, "SessionLocal", factory)
-    monkeypatch.setattr(routes, "run_full_pipeline", fake_pipeline)
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", fake_pipeline)
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)
     app.dependency_overrides.clear()

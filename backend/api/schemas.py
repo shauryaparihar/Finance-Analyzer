@@ -35,6 +35,7 @@ class UploadAccepted(BaseModel):
     upload_id: uuid.UUID
     filename: str
     status: str
+    reused: bool = False  # true: you already had this exact file analysed, so that analysis is returned
     rows_received: int
     rows_dropped: int
     amount_convention: str
@@ -51,10 +52,22 @@ class UploadOut(BaseModel):
     completed_at: Optional[datetime] = None
 
 
+class ModuleStatusOut(BaseModel):
+    module: str
+    status: str  # pending | running | completed | failed | skipped
+    duration_ms: Optional[int] = None
+    model_version: Optional[str] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+
 class UploadStatusOut(BaseModel):
     upload_id: uuid.UUID
-    status: str
+    status: str  # queued | processing | completed | partial | failed
     error_summary: Optional[str] = None
+    modules: list[ModuleStatusOut] = []
 
 
 class TransactionOut(BaseModel):

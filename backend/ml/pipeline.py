@@ -4,8 +4,11 @@ Analysis pipeline: clean the upload, categorize, forecast, rank unusual transact
 Each module is isolated: if one fails, the others still finish and the failure is recorded.
 """
 import concurrent.futures
+import contextvars
 import logging
-from typing import Any, Dict
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Optional
 
 import pandas as pd
 
@@ -16,6 +19,60 @@ from backend.ml.preprocessing import preprocess_full
 from backend.utils.helpers import calculate_summary_stats
 
 logger = logging.getLogger("finsight.ml")
+
+
+@dataclass
+class ModuleOutcome:
+    """How one analysis module ended. `skipped` means "not enough data", which is not a failure."""
+
+    status: str  # completed | failed | skipped
+    model_version: Optional[str] = None
+    error_code: Optional[str] = None
+    error_message: Optional[str] = None  # always safe to show to the user
+
+
+class NullObserver:
+    """Receives module progress events; the default ignores them."""
+
+    def on_start(self, module: str) -> None: ...
+
+    def on_finish(self, module: str, outcome: ModuleOutcome, duration_ms: int) -> None: ...
+
+
+def _observed(module: str, fn: Callable, args: tuple, observer, classify: Callable[[dict], ModuleOutcome]):
+    """Run one module, timing it and reporting its start and outcome."""
+    observer.on_start(module)
+    started = time.perf_counter()
+    result = fn(*args)
+    observer.on_finish(module, classify(result), int((time.perf_counter() - started) * 1000))
+    return result
+
+
+def _classify_categorization(categorizer):
+    def classify(result: dict) -> ModuleOutcome:
+        if "error" in result:
+            return ModuleOutcome("failed", error_code="CATEGORIZATION_FAILED", error_message="Categorization failed.")
+        return ModuleOutcome("completed", model_version=categorizer.version)
+
+    return classify
+
+
+def _classify_with_status(failed_code: str, failed_message: str, skipped_code: str):
+    """For modules whose result may carry status 'skipped' (not enough data) or an 'error' key."""
+
+    def classify(result: dict) -> ModuleOutcome:
+        if "error" in result:
+            return ModuleOutcome("failed", error_code=failed_code, error_message=failed_message)
+        if result.get("status") == "skipped":
+            return ModuleOutcome("skipped", error_code=skipped_code, error_message=result.get("reason"))
+        return ModuleOutcome("completed", model_version=result.get("method"))
+
+    return classify
+
+
+_classify_forecast = _classify_with_status("FORECAST_FAILED", "Forecast failed.", "INSUFFICIENT_HISTORY")
+_classify_anomaly = _classify_with_status("ANOMALY_FAILED", "Unusual-transaction ranking failed.", "INSUFFICIENT_DATA")
+_classify_summary = _classify_with_status("SUMMARY_FAILED", "Summary failed.", "NOT_AVAILABLE")
 
 
 def _run_categorization(df, categorizer):
@@ -99,8 +156,9 @@ def _apply_anomaly(df: pd.DataFrame, anomaly_res: dict, results: dict) -> None:
     results["modules"]["anomaly"] = anomaly_res
 
 
-def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
-    """Run the complete analysis on validated upload data."""
+def run_full_pipeline(df: pd.DataFrame, categorizer, observer=None) -> Dict[str, Any]:
+    """Run the complete analysis on validated upload data, reporting each module's progress to `observer`."""
+    observer = observer or NullObserver()
     results: Dict[str, Any] = {"status": "completed", "modules": {}, "errors": []}
 
     try:
@@ -118,8 +176,15 @@ def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
 
     # Categorization and forecasting do not depend on each other.
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        categorization = executor.submit(_run_categorization, df, categorizer)
-        forecast = executor.submit(_run_forecast, df)
+        # Worker threads do not inherit context variables, so each task runs in a copy of this thread's context:
+        # that keeps the request id on the log lines they write.
+        categorization = executor.submit(
+            contextvars.copy_context().run,
+            _observed, "categorization", _run_categorization, (df, categorizer), observer, _classify_categorization(categorizer),
+        )
+        forecast = executor.submit(
+            contextvars.copy_context().run, _observed, "forecast", _run_forecast, (df,), observer, _classify_forecast
+        )
         cat_res, forecast_res = categorization.result(), forecast.result()
 
     _apply_categorization(df, cat_res, categorizer, results)
@@ -130,10 +195,10 @@ def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
         results["modules"]["forecast"] = forecast_res
 
     # Ranking unusual transactions needs each row's effective category, so it runs after categorization.
-    _apply_anomaly(df, _run_anomaly(df), results)
+    _apply_anomaly(df, _observed("anomaly", _run_anomaly, (df,), observer, _classify_anomaly), results)
     df["is_anomaly"] = df["anomaly_rank"].notna()
 
-    summary = _run_summary(df)
+    summary = _observed("summary", _run_summary, (df,), observer, _classify_summary)
     if "error" in summary:
         results["errors"].append(f"Summary failed: {summary['error']}")
     else:

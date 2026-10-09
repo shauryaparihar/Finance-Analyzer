@@ -72,6 +72,8 @@ class Upload(Base):
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # The sign convention applied at upload; part of the duplicate-result key, because it changes the results.
+    amount_convention: Mapped[Optional[str]] = mapped_column(String(30))
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued", server_default="queued")
     error_summary: Mapped[Optional[str]] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

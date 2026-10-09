@@ -13,6 +13,7 @@ def test_readyz_succeeds_when_database_is_reachable(test_engine, monkeypatch):
     from types import SimpleNamespace
 
     monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="t"), raising=False)
+    monkeypatch.setattr(main.app.state, "job_runner", SimpleNamespace(is_running=True), raising=False)
     monkeypatch.setattr(main, "engine", test_engine)
     response = TestClient(main.app).get("/readyz")
     assert response.status_code == 200

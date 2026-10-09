@@ -6,8 +6,7 @@ import hashlib
 import logging
 import uuid
 
-import pandas as pd
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Path, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Path, Query, Request, Response, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -19,6 +18,7 @@ from backend.api.schemas import (
     BudgetIn,
     BudgetOut,
     CategoryUpdate,
+    ModuleStatusOut,
     ResultOut,
     TransactionOut,
     TransactionsPage,
@@ -30,9 +30,10 @@ from backend.api.schemas import (
 from backend.core import repository as repo
 from backend.core.config import settings
 from backend.core.database import SessionLocal, get_db
+from backend.core.logging import log_event, request_id_var
 from backend.core.models import Upload
 from backend.ml.anomaly import DISCLAIMER as ANOMALY_DISCLAIMER
-from backend.ml.pipeline import run_full_pipeline
+from backend.services.analysis_job import run_analysis_job
 from backend.services.anomaly_refresh import refresh_anomaly_ranking
 from backend.services.budget_risk import compute_budget_risk
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
@@ -43,39 +44,19 @@ logger = logging.getLogger("finsight.api")
 router = APIRouter(prefix="/api", tags=["finance"])
 
 
-def _run_pipeline_background(user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.DataFrame, categorizer):
-    """Run the ML pipeline in the background. Failures are logged here and summarized safely for the user."""
-    db = SessionLocal()
-    try:
-        results = run_full_pipeline(df, categorizer)
-
-        processed_df = results.pop("processed_df", df)
-        repo.store_transactions(db, user_id, upload_id, processed_df)
-
-        for module_name, module_data in results.get("modules", {}).items():
-            repo.upsert_analysis_result(db, user_id, upload_id, module_name, module_data)
-
-        if results.get("errors"):
-            repo.upsert_analysis_result(db, user_id, upload_id, "errors", {"errors": results["errors"]})
-
-        if results.get("status") == "failed":
-            repo.update_upload_status(db, user_id, upload_id, "failed", error_summary="Analysis failed.")
-        else:
-            repo.update_upload_status(db, user_id, upload_id, "completed")
-    except Exception:
-        logger.exception("pipeline_failed upload_id=%s", upload_id)
-        db.rollback()
-        repo.update_upload_status(db, user_id, upload_id, "failed", error_summary="Analysis failed.")
-    finally:
-        db.close()
-
-
 def get_categorizer(request: Request):
     """The categorizer loaded at startup; uploads are refused while it is unavailable."""
     categorizer = getattr(request.app.state, "categorizer", None)
     if categorizer is None:
         raise AppError(503, "MODEL_UNAVAILABLE", "The categorization model is unavailable. Please try again later.")
     return categorizer
+
+
+def get_job_runner(request: Request):
+    runner = getattr(request.app.state, "job_runner", None)
+    if runner is None or not runner.is_running:
+        raise AppError(503, "NOT_READY", "The analysis service is not available. Please try again shortly.")
+    return runner
 
 
 def _upload_not_found() -> AppError:
@@ -92,14 +73,15 @@ def _owned_upload(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> Uplo
 
 @router.post("/uploads", response_model=UploadAccepted, status_code=202)
 def create_upload(
-    background_tasks: BackgroundTasks,
+    response: Response,
     file: UploadFile = File(...),
     amount_convention: str = Query("auto", description="auto | expenses_positive | expenses_negative"),
     db: Session = Depends(get_db),
     user_id: uuid.UUID = Depends(get_current_user_id),
     categorizer=Depends(get_categorizer),
+    runner=Depends(get_job_runner),
 ):
-    """Validate a CSV, record it, and start the analysis in the background."""
+    """Validate a CSV and queue its analysis, or return your existing analysis of the same file."""
     filename = sanitize_filename(file.filename)
     # Read at most one byte past the limit so an oversized upload is never fully loaded into memory.
     contents = file.file.read(settings.max_upload_bytes + 1)
@@ -112,29 +94,59 @@ def create_upload(
         max_rows=settings.max_upload_rows,
         max_invalid_share=settings.max_invalid_row_share,
     )
+    content_sha256 = hashlib.sha256(contents).hexdigest()
 
+    # Same user + same file + same sign convention + same model version => the analysis would be identical.
+    # The lookup is scoped to this user, so one person's upload can never be returned to another.
+    existing = repo.find_reusable_upload(db, user_id, content_sha256, ingest.amount_convention)
+    if existing is not None:
+        cached = repo.get_analysis_result(db, user_id, existing.id, "categorization")
+        if cached and cached.get("model_version") == categorizer.version:
+            log_event(logger, logging.INFO, "upload_reused", upload_id=str(existing.id), user_id=str(user_id))
+            response.status_code = 200
+            return UploadAccepted(
+                upload_id=existing.id,
+                filename=existing.original_filename,
+                status=existing.status,
+                reused=True,
+                rows_received=ingest.rows_received,
+                rows_dropped=ingest.rows_dropped,
+                amount_convention=ingest.amount_convention,
+                message="You already analysed this exact file, so that analysis is shown. "
+                "Delete it first if you want a fresh one.",
+            )
+
+    if repo.count_active_uploads(db) >= settings.max_active_jobs:
+        raise AppError(503, "SERVER_BUSY", "The server is busy analysing other uploads. Please try again in a minute.")
     active_error = AppError(
         409, "ACTIVE_JOB_EXISTS", "You already have an analysis running. Please wait for it to finish."
     )
     if repo.has_active_upload(db, user_id):
         raise active_error
     try:
-        upload = repo.create_upload(db, user_id, filename, hashlib.sha256(contents).hexdigest(), len(ingest.df))
+        upload = repo.create_upload(
+            db, user_id, filename, content_sha256, len(ingest.df), amount_convention=ingest.amount_convention
+        )
     except IntegrityError:  # the database's one-active-upload rule caught a simultaneous request
         db.rollback()
         raise active_error
-    repo.update_upload_status(db, user_id, upload.id, "processing")
+    repo.create_runs(db, user_id, upload.id)  # module states exist before any work starts
 
-    background_tasks.add_task(_run_pipeline_background, user_id, upload.id, ingest.df, categorizer)
+    log_event(
+        logger, logging.INFO, "upload_accepted",
+        upload_id=str(upload.id), user_id=str(user_id), rows=len(ingest.df), rows_dropped=ingest.rows_dropped,
+        amount_convention=ingest.amount_convention,
+    )
+    runner.submit(run_analysis_job, SessionLocal, user_id, upload.id, ingest.df, categorizer, request_id_var.get())
 
     return UploadAccepted(
         upload_id=upload.id,
         filename=filename,
-        status="processing",
+        status="queued",
         rows_received=ingest.rows_received,
         rows_dropped=ingest.rows_dropped,
         amount_convention=ingest.amount_convention,
-        message="File accepted. Analysis is running in the background.",
+        message="File accepted. Analysis is queued.",
     )
 
 
@@ -170,7 +182,19 @@ def get_upload_status(
     upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)
 ):
     upload = _owned_upload(db, user_id, upload_id)
-    return UploadStatusOut(upload_id=upload.id, status=upload.status, error_summary=upload.error_summary)
+    runs = repo.list_runs(db, user_id, upload_id)
+    return UploadStatusOut(
+        upload_id=upload.id,
+        status=upload.status,
+        error_summary=upload.error_summary,
+        modules=[
+            ModuleStatusOut(
+                module=r.module, status=r.status, duration_ms=r.duration_ms, model_version=r.model_version,
+                error_code=r.error_code, error_message=r.error_message, started_at=r.started_at, finished_at=r.finished_at,
+            )
+            for r in runs
+        ],
+    )
 
 
 def _result(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, stored_type: str, public_type: str) -> ResultOut:
