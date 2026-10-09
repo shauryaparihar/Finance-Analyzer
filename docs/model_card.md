@@ -92,3 +92,28 @@ A probe of 2,000 generated nonsense descriptions (random letters and numbers, wi
 - Only this repository-owned artifact is ever deserialized; user-supplied files are never loaded as models.
 - Transaction descriptions are not written to logs.
 - Metadata records the model version, training-data description, timestamp, feature configuration, split method, metrics, threshold, library versions and artifact checksum. Training is deterministic for a fixed dataset and seed (metrics and version are identical across runs); the compressed file's bytes can differ between runs.
+
+
+---
+
+# Unusual-transaction review (separate from the categorizer)
+
+**What it is:** a short ranked list of expenses that stand out from the person's own spending, so they can look at the handful that matter. **It is not fraud detection**, and "unusual" does not mean "wrong": a holiday, a new laptop or an annual bill will all rank high.
+
+**How it works (nothing is trained on uploaded data beyond robust statistics):**
+- Each expense is compared with the typical amount for its own category, using the median and the median absolute deviation of the log amount (robust to the very outliers we look for, and suited to right-skewed spending). Categories with fewer than 8 expenses are compared with all spending.
+- The score is that deviation, capped at 6 standard deviations and scaled to 0-1; ties among capped rows are ordered by the uncapped deviation.
+- The top **K = 10** (the review capacity) are stored with their rank and a plain-language reason, e.g. "Amount 2,196.33 is about 15.3x the typical Utilities amount (143.83)." The user marks each one **confirmed** (worth following up) or **dismissed** (expected).
+- At least 20 expenses are needed; otherwise the result is `skipped` with a reason. Money-in rows are never ranked. No contamination rate is assumed: the number flagged is the review capacity, not a claim about how many are "bad".
+
+**Evaluation (`python -m backend.ml.anomaly_eval`).** On 20 labelled synthetic fixtures (900 ordinary rows plus 10 injected spikes of 4-12x the category's typical amount, K = 10; with 10 injected per fixture precision@10 equals recall@10):
+
+| Method | precision@10 | recall@10 |
+|---|---|---|
+| **Category-relative deviation (shipped)** | **0.775 ± 0.113** | 0.775 ± 0.113 |
+| Isolation Forest alone | 0.675 ± 0.141 | 0.675 ± 0.141 |
+| 70/30 blend of both | 0.785 ± 0.115 | 0.785 ± 0.115 |
+
+The blend was never worse than the deviation score and was better in only 4 of 40 fixtures (+0.1 hit on average), so the simpler, fully explainable deviation score ships and Isolation Forest is kept only for this comparison.
+
+**Limits of this evaluation:** the injected anomalies are amount spikes, which is exactly what the shipped method looks for, so the numbers are optimistic and say nothing about other kinds of oddity (timing, duplicates, a new merchant) or about real fraud. Heavy-tailed categories (e.g. Shopping) produce legitimate large amounts that are hard to separate from injected ones. Real-world precision is unknown.

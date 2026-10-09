@@ -105,6 +105,7 @@ class Transaction(Base):
     confirmed_category: Mapped[Optional[str]] = mapped_column(String(100))
     anomaly_score: Mapped[Optional[float]] = mapped_column(Float)
     anomaly_rank: Mapped[Optional[int]] = mapped_column(Integer)
+    anomaly_reason: Mapped[Optional[str]] = mapped_column(String(300))
     anomaly_review_status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="unreviewed", server_default="unreviewed"
     )

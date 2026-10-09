@@ -4,7 +4,7 @@ Pydantic schemas for API request/response validation.
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -69,6 +69,8 @@ class TransactionOut(BaseModel):
     review_required: bool = False
     anomaly_score: Optional[float] = None
     anomaly_rank: Optional[int] = None
+    anomaly_reason: Optional[str] = None
+    anomaly_review_status: str = "unreviewed"
 
 
 class TransactionsPage(BaseModel):
@@ -97,3 +99,32 @@ class BudgetOut(BaseModel):
     monthly_limit: float
     created_at: datetime
     updated_at: datetime
+
+
+class AnomalyReviewUpdate(BaseModel):
+    status: Literal["confirmed", "dismissed", "unreviewed"]
+
+
+class UnusualTransaction(BaseModel):
+    transaction_id: int
+    rank: int
+    date: Optional[str] = None
+    description: Optional[str] = None
+    amount: float
+    category: str
+    score: Optional[float] = None
+    reason: Optional[str] = None
+    review_status: str
+
+
+class AnomaliesOut(BaseModel):
+    status: str  # completed | skipped | not_available
+    reason: Optional[str] = None
+    method: Optional[str] = None
+    review_capacity: Optional[int] = None
+    expenses_scanned: Optional[int] = None
+    reviewed: int = 0
+    confirmed: int = 0
+    dismissed: int = 0
+    items: list[UnusualTransaction] = []
+    disclaimer: str

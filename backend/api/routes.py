@@ -14,12 +14,15 @@ from sqlalchemy.orm import Session
 from backend.api.deps import get_current_user_id
 from backend.api.errors import AppError
 from backend.api.schemas import (
+    AnomaliesOut,
+    AnomalyReviewUpdate,
     BudgetIn,
     BudgetOut,
     CategoryUpdate,
     ResultOut,
     TransactionOut,
     TransactionsPage,
+    UnusualTransaction,
     UploadAccepted,
     UploadOut,
     UploadStatusOut,
@@ -28,6 +31,7 @@ from backend.core import repository as repo
 from backend.core.config import settings
 from backend.core.database import SessionLocal, get_db
 from backend.core.models import Upload
+from backend.ml.anomaly import DISCLAIMER as ANOMALY_DISCLAIMER
 from backend.ml.pipeline import run_full_pipeline
 from backend.services.budget_risk import compute_budget_risk
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
@@ -186,9 +190,44 @@ def get_forecast(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: u
     return _result(db, user_id, upload_id, "forecast", "forecast")
 
 
-@router.get("/uploads/{upload_id}/anomalies", response_model=ResultOut)
+@router.get("/uploads/{upload_id}/anomalies", response_model=AnomaliesOut)
 def get_anomalies(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
-    return _result(db, user_id, upload_id, "anomaly", "anomalies")
+    """The unusual-transaction review queue: ranked candidates and your confirm/dismiss decisions."""
+    _owned_upload(db, user_id, upload_id)
+    summary = repo.get_analysis_result(db, user_id, upload_id, "anomaly")
+    if summary is None:
+        return AnomaliesOut(
+            status="not_available",
+            reason="No unusual-transaction result is available for this upload.",
+            disclaimer=ANOMALY_DISCLAIMER,
+        )
+    queue = repo.get_review_queue(db, user_id, upload_id)
+    items = [
+        UnusualTransaction(
+            transaction_id=t.id,
+            rank=t.anomaly_rank,
+            date=t.transaction_date.isoformat() if t.transaction_date else None,
+            description=t.description,
+            amount=float(t.amount),
+            category=repo.effective_category(t),
+            score=t.anomaly_score,
+            reason=t.anomaly_reason,
+            review_status=t.anomaly_review_status,
+        )
+        for t in queue
+    ]
+    return AnomaliesOut(
+        status=summary["status"],
+        reason=summary.get("reason"),
+        method=summary.get("method"),
+        review_capacity=summary.get("review_capacity"),
+        expenses_scanned=summary.get("expenses_scanned"),
+        reviewed=sum(i.review_status != "unreviewed" for i in items),
+        confirmed=sum(i.review_status == "confirmed" for i in items),
+        dismissed=sum(i.review_status == "dismissed" for i in items),
+        items=items,
+        disclaimer=summary.get("disclaimer", ANOMALY_DISCLAIMER),
+    )
 
 
 @router.get("/uploads/{upload_id}/transactions", response_model=TransactionsPage)
@@ -225,6 +264,8 @@ def _transaction_out(t) -> TransactionOut:
         review_required=category == "Uncategorized",
         anomaly_score=t.anomaly_score,
         anomaly_rank=t.anomaly_rank,
+        anomaly_reason=t.anomaly_reason,
+        anomaly_review_status=t.anomaly_review_status,
     )
 
 
@@ -252,6 +293,22 @@ def correct_transaction_category(
 def delete_upload(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
     if not repo.delete_upload(db, user_id, upload_id):
         raise _upload_not_found()
+
+
+@router.patch("/transactions/{transaction_id}/anomaly-review", response_model=TransactionOut)
+def review_unusual_transaction(
+    transaction_id: int,
+    body: AnomalyReviewUpdate,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Confirm (worth following up) or dismiss (expected) a transaction in the review queue."""
+    txn = repo.get_owned_transaction(db, user_id, transaction_id)
+    if txn is None:
+        raise AppError(404, "NOT_FOUND", "Transaction not found.")
+    if txn.anomaly_rank is None:
+        raise AppError(422, "NOT_IN_REVIEW_QUEUE", "This transaction is not in the unusual-transaction review queue.")
+    return _transaction_out(repo.set_anomaly_review(db, user_id, transaction_id, body.status))
 
 
 @router.get("/uploads/{upload_id}/budget-risk")

@@ -1,12 +1,11 @@
 import { Outlet, Link, useLocation } from "react-router";
-import { BarChart3, TrendingUp, AlertTriangle, Users, Upload } from "lucide-react";
+import { BarChart3, TrendingUp, AlertTriangle, Upload } from "lucide-react";
 import { cn } from "./ui/utils";
 
 const navItems = [
   { path: "/overview", label: "Overview", icon: BarChart3 },
   { path: "/predictions", label: "Predictions", icon: TrendingUp },
-  { path: "/anomalies", label: "Anomalies", icon: AlertTriangle },
-  { path: "/segmentation", label: "Segmentation", icon: Users },
+  { path: "/anomalies", label: "Unusual Transactions", icon: AlertTriangle },
 ];
 
 export function Layout() {

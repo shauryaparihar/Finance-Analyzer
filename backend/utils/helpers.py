@@ -25,7 +25,7 @@ def calculate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
         "total_spending": float(expenses["amount"].sum()) if len(expenses) > 0 else 0,
         "total_income": float(abs(income["amount"].sum())) if len(income) > 0 else 0,
         "avg_transaction": float(expenses["amount"].mean()) if len(expenses) > 0 else 0,
-        "num_anomalies": int(df["is_anomaly"].sum()) if "is_anomaly" in df.columns else 0,
+        "review_queue_size": int(df["is_anomaly"].sum()) if "is_anomaly" in df.columns else 0,
     }
 
     # Category breakdown, by effective category: confirmed -> your own label -> model prediction -> Uncategorized
@@ -90,96 +90,3 @@ def safe_json_serializable(obj):
     if isinstance(obj, (list, tuple)):
         return [safe_json_serializable(i) for i in obj]
     return obj
-
-
-def format_anomaly_results(raw_res: Dict[str, Any], df: pd.DataFrame) -> Dict[str, Any]:
-    """Format anomaly detector output for the frontend."""
-    if "error" in raw_res:
-        return raw_res
-
-    # Table data - Limit to top 100 anomalies to keep the dashboard performant
-    raw_flagged = raw_res.get("flagged_transactions", [])
-    anomalies = []
-    for i, t in enumerate(raw_flagged[:100]):
-        # Calculate severity based on score
-        # Decision function: lower values are more anomalous
-        score = t.get("anomaly_score", 0)
-        threshold = raw_res.get("score_stats", {}).get("threshold", 0)
-        severity = "High" if score < threshold * 1.2 else "Medium"
-        
-        anomalies.append({
-            "id": f"anom-{i}",
-            "date": t.get("date"),
-            "description": t.get("description", "Unknown transaction"),
-            "amount": t.get("amount", 0),
-            "score": score,
-            "severity": severity
-        })
-
-    # Visualization plot data - Sub-sampling for performance (50k points will crash the UI)
-    plot_data = []
-    if "date" in df.columns:
-        expenses = df[df["amount"] > 0].copy()
-        all_labels = raw_res.get("all_labels", [])
-        
-        if len(all_labels) == len(expenses):
-            # Include all anomalies
-            anomaly_indices = [i for i, label in enumerate(all_labels) if label == -1]
-            normal_indices = [i for i, label in enumerate(all_labels) if label != -1]
-            
-            # Sub-sample normal indices to max 500
-            import random
-            if len(normal_indices) > 500:
-                random.seed(42)  # Deterministic sampling
-                normal_indices = random.sample(normal_indices, 500)
-            
-            # Reconstruct the plot_data list from the selected indices
-            selected_indices = sorted(anomaly_indices + normal_indices)
-            
-            for i in selected_indices:
-                row = expenses.iloc[i]
-                plot_data.append({
-                    "date": row["date"].strftime("%Y-%m-%d") if pd.notna(row["date"]) else "N/A",
-                    "amount": float(row["amount"]),
-                    "type": "anomaly" if i in anomaly_indices else "normal"
-                })
-
-    return {
-        "anomalies": anomalies,
-        "plot_data": plot_data,
-        "summary": {
-            "total_count": raw_res.get("total_anomalies", 0),
-            "rate": raw_res.get("anomaly_rate", 0)
-        }
-    }
-
-def format_segmentation_results(raw_res: Dict[str, Any]) -> Dict[str, Any]:
-    """Format clustering output for the frontend."""
-    if "error" in raw_res:
-        return raw_res
-
-    # Map pca_x/y to x/y
-    points = [
-        {
-            "x": p["pca_x"],
-            "y": p["pca_y"],
-            "cluster": p["cluster"],
-            "label": p["year_month"]
-        }
-        for p in raw_res.get("scatter_data", [])
-    ]
-
-    # Cluster profiles
-    profiles = []
-    for cp in raw_res.get("cluster_profiles", []):
-        profiles.append({
-            **cp,
-            "top_categories": ["Housing", "Utilities", "Food"], # Placeholder
-            "description": f"Target group with average monthly spend of ${cp.get('avg_total_spending', 0):,.2f}."
-        })
-
-    return {
-        "points": points,
-        "cluster_profiles": profiles,
-        "best_k": raw_res.get("best_k", 0)
-    }

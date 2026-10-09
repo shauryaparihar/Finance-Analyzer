@@ -1,22 +1,19 @@
 """
-ML Pipeline Orchestrator — runs the full analysis pipeline.
+Analysis pipeline: clean the upload, categorize, forecast, rank unusual transactions, summarize.
+
+Each module is isolated: if one fails, the others still finish and the failure is recorded.
 """
 import concurrent.futures
 import logging
-import traceback
 from typing import Any, Dict
 
 import pandas as pd
 
-from backend.ml.anomaly import detect_anomalies
+from backend.core.config import MAX_WORKERS
+from backend.ml.anomaly import run_anomaly_detection
 from backend.ml.forecast import run_forecast
 from backend.ml.preprocessing import preprocess_full
-from backend.ml.segmentation import segment_spending
-from backend.utils.helpers import (
-    calculate_summary_stats,
-    format_anomaly_results,
-    format_segmentation_results,
-)
+from backend.utils.helpers import calculate_summary_stats
 
 logger = logging.getLogger("finsight.ml")
 
@@ -41,66 +38,22 @@ def _run_forecast(df):
 
 def _run_anomaly(df):
     try:
-        return detect_anomalies(df)
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
+        return run_anomaly_detection(df)
+    except Exception:
+        logger.exception("anomaly_failed")
+        return {"error": "Unusual-transaction ranking failed"}
 
-def _run_segmentation(df):
-    try:
-        return segment_spending(df)
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
 
 def _run_summary(df):
     try:
         return calculate_summary_stats(df)
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
+    except Exception:
+        logger.exception("summary_failed")
+        return {"error": "Summary failed"}
 
-def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
-    """
-    Run the complete ML pipeline on uploaded transaction data concurrently.
-    """
-    from backend.core.config import MAX_WORKERS
-    
-    results = {
-        "status": "completed",
-        "modules": {},
-        "errors": [],
-    }
 
-    print("\n🔧 Step 1: Preprocessing data...")
-    try:
-        df = preprocess_full(df)
-        results["modules"]["preprocessing"] = {
-            "status": "success",
-            "rows_after_cleaning": len(df),
-            "columns": list(df.columns),
-        }
-    except Exception as e:
-        results["errors"].append(f"Preprocessing failed: {str(e)}")
-        results["status"] = "failed"
-        traceback.print_exc()
-        return results
-
-    print(f"\n🚀 Step 2: Running ML modules concurrently ({MAX_WORKERS} workers)...")
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        f_cat = executor.submit(_run_categorization, df, categorizer)
-        f_pred = executor.submit(_run_forecast, df)
-        f_anom = executor.submit(_run_anomaly, df)
-        f_seg = executor.submit(_run_segmentation, df)
-        
-        # Wait for and collect results
-        cat_res = f_cat.result()
-        pred_res = f_pred.result()
-        anom_res = f_anom.result()
-        seg_res = f_seg.result()
-
-    # Process and assign categorization
+def _apply_categorization(df: pd.DataFrame, cat_res: dict, categorizer, results: dict) -> None:
+    """Add predicted/effective category columns. Effective: your own label, else the model's, else Uncategorized."""
     source = df["category"] if "category" in df.columns else pd.Series([None] * len(df), index=df.index)
     source = source.where(source.notna() & (source != "Uncategorized"), None)
     df["predicted_category"] = None
@@ -108,74 +61,84 @@ def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
     if "error" in cat_res:
         results["errors"].append(f"Categorization failed: {cat_res['error']}")
         df["effective_category"] = source.fillna("Uncategorized")
-    else:
-        predictions = cat_res["predictions"]
-        df["predicted_category"] = predictions["predicted_category"]
-        df["prediction_confidence"] = predictions["confidence"]
-        # Effective category: your own label first, otherwise the model's, otherwise Uncategorized.
-        df["effective_category"] = source.fillna(df["predicted_category"]).fillna("Uncategorized")
-        by_reason = predictions["reason"].value_counts().to_dict()
-        total = len(df)
-        results["modules"]["categorization"] = {
-            "model_version": categorizer.version,
-            "confidence_threshold": categorizer.threshold,
-            "rows": total,
-            "auto_categorized": int((predictions["predicted_category"] != "Uncategorized").sum()),
-            "low_confidence": int(by_reason.get("low_confidence", 0)),
-            "no_description": int(by_reason.get("no_description", 0)),
-            "needs_review": int((df["effective_category"] == "Uncategorized").sum()),
-            "auto_categorized_rate": float((predictions["predicted_category"] != "Uncategorized").mean()) if total else 0.0,
-            "note": "Model trained on synthetic data; low-confidence rows are left Uncategorized for your review.",
+        return
+
+    predictions = cat_res["predictions"]
+    df["predicted_category"] = predictions["predicted_category"]
+    df["prediction_confidence"] = predictions["confidence"]
+    df["effective_category"] = source.fillna(df["predicted_category"]).fillna("Uncategorized")
+    by_reason = predictions["reason"].value_counts().to_dict()
+    total = len(df)
+    auto = int((predictions["predicted_category"] != "Uncategorized").sum())
+    results["modules"]["categorization"] = {
+        "model_version": categorizer.version,
+        "confidence_threshold": categorizer.threshold,
+        "rows": total,
+        "auto_categorized": auto,
+        "low_confidence": int(by_reason.get("low_confidence", 0)),
+        "unrecognized_text": int(by_reason.get("unrecognized_text", 0)),
+        "no_description": int(by_reason.get("no_description", 0)),
+        "needs_review": int((df["effective_category"] == "Uncategorized").sum()),
+        "auto_categorized_rate": auto / total if total else 0.0,
+        "note": "Model trained on synthetic data; low-confidence rows are left Uncategorized for your review.",
+    }
+
+
+def _apply_anomaly(df: pd.DataFrame, anomaly_res: dict, results: dict) -> None:
+    """Store the review-queue columns on the dataframe and the summary as a module result."""
+    df["anomaly_score"] = None
+    df["anomaly_rank"] = None
+    df["anomaly_reason"] = None
+    if "error" in anomaly_res:
+        results["errors"].append(f"Unusual-transaction ranking failed: {anomaly_res['error']}")
+        return
+    columns = anomaly_res.pop("row_columns")
+    if columns is not None:
+        for name in ("anomaly_score", "anomaly_rank", "anomaly_reason"):
+            df[name] = columns[name].reindex(df.index).astype(object)
+    results["modules"]["anomaly"] = anomaly_res
+
+
+def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
+    """Run the complete analysis on validated upload data."""
+    results: Dict[str, Any] = {"status": "completed", "modules": {}, "errors": []}
+
+    try:
+        df = preprocess_full(df)
+        results["modules"]["preprocessing"] = {
+            "status": "success",
+            "rows_after_cleaning": len(df),
+            "columns": list(df.columns),
         }
+    except Exception:
+        logger.exception("preprocessing_failed")
+        results["errors"].append("Preprocessing failed")
+        results["status"] = "failed"
+        return results
 
-    # Process and assign forecast
-    if "error" in pred_res:
-        results["errors"].append(f"Forecast failed: {pred_res['error']}")
-    else:
-        results["modules"]["forecast"] = pred_res
+    # Categorization and forecasting do not depend on each other.
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        categorization = executor.submit(_run_categorization, df, categorizer)
+        forecast = executor.submit(_run_forecast, df)
+        cat_res, forecast_res = categorization.result(), forecast.result()
 
-    # Process and assign anomaly
-    if "error" in anom_res:
-        results["errors"].append(f"Anomaly detection failed: {anom_res['error']}")
-    else:
-        results["modules"]["anomaly"] = format_anomaly_results(anom_res, df)
-        expenses = df[df["amount"] > 0].copy()
-        if len(anom_res.get("all_labels", [])) == len(expenses):
-            df["is_anomaly"] = False
-            df["anomaly_score"] = 0.0
-            
-            # Using bool() to explicitly ensure boolean type to prevent pandas coercion issues
-            anomaly_flags = [bool(label == -1) for label in anom_res["all_labels"]]
-            df.loc[expenses.index, "is_anomaly"] = anomaly_flags
-            df.loc[expenses.index, "anomaly_score"] = anom_res["all_scores"]
+    _apply_categorization(df, cat_res, categorizer, results)
 
-    # Process and assign segmentation
-    if "error" in seg_res:
-        results["errors"].append(f"Segmentation failed: {seg_res['error']}")
+    if "error" in forecast_res:
+        results["errors"].append(f"Forecast failed: {forecast_res['error']}")
     else:
-        results["modules"]["segmentation"] = format_segmentation_results(seg_res)
+        results["modules"]["forecast"] = forecast_res
 
-    # FINALLY run summary stats on the fully processed dataframe
-    print(f"\n📊 Step 3: Calculating final summary statistics on {len(df)} rows...")
-    print(f"    Available columns for summary: {list(df.columns)}")
-    if "is_anomaly" in df.columns:
-        print(f"    Anomalies found in DF: {df['is_anomaly'].sum()}")
-    
-    sum_res = _run_summary(df)
-    
-    if "error" in sum_res:
-        print(f"    ❌ Summary stats failed: {sum_res['error']}")
-        results["errors"].append(f"Summary stats failed: {sum_res['error']}")
+    # Ranking unusual transactions needs each row's effective category, so it runs after categorization.
+    _apply_anomaly(df, _run_anomaly(df), results)
+    df["is_anomaly"] = df["anomaly_rank"].notna()
+
+    summary = _run_summary(df)
+    if "error" in summary:
+        results["errors"].append(f"Summary failed: {summary['error']}")
     else:
-        print(f"    ✅ Summary stats calculated. Keys: {list(sum_res.keys())}")
-        if "avg_monthly_spending" in sum_res:
-            print(f"    ⭐ Avg Monthly Spend: {sum_res['avg_monthly_spending']}")
-        results["modules"]["summary"] = sum_res
+        results["modules"]["summary"] = summary
 
     results["processed_df"] = df
-
-    print(f"\n{'='*50}")
-    print(f"Pipeline completed: {len(results['errors'])} errors")
-    print(f"{'='*50}\n")
-
+    logger.info("pipeline_finished rows=%s errors=%s", len(df), len(results["errors"]))
     return results

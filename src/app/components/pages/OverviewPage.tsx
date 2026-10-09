@@ -164,9 +164,9 @@ export function OverviewPage() {
         />
         <KPICard
           label="Anomalies Detected"
-          value={data?.num_anomalies?.toString() || "0"}
-          trend={data?.num_anomalies > 0 ? { direction: "up", percentage: "Review" } : undefined}
-          variant={data?.num_anomalies > 0 ? "warning" : "default"}
+          value={data?.review_queue_size?.toString() || "0"}
+          trend={data?.review_queue_size > 0 ? { direction: "up", percentage: "Review" } : undefined}
+          variant={data?.review_queue_size > 0 ? "warning" : "default"}
         />
       </div>
 

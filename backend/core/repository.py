@@ -95,13 +95,8 @@ def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df
     if get_upload(db, user_id, upload_id) is None:
         raise LookupError("Upload not found")
 
-    ranks: dict[int, int] = {}
-    if "is_anomaly" in df.columns and "anomaly_score" in df.columns:
-        flagged = df[df["is_anomaly"].fillna(False).astype(bool)].sort_values("anomaly_score")
-        ranks = {idx: n for n, idx in enumerate(flagged.index, start=1)}
-
     rows = []
-    for idx, row in df.iterrows():
+    for _, row in df.iterrows():
         txn_date = _clean(row.get("date"))
         category = _clean(row.get("category"))
         description = _clean(row.get("description"))
@@ -118,7 +113,8 @@ def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df
                 if _clean(row.get("prediction_confidence")) is not None
                 else None,
                 "anomaly_score": float(score) if score is not None else None,
-                "anomaly_rank": ranks.get(idx),
+                "anomaly_rank": int(row["anomaly_rank"]) if _clean(row.get("anomaly_rank")) is not None else None,
+                "anomaly_reason": _clean(row.get("anomaly_reason")),
             }
         )
     if rows:
@@ -277,3 +273,41 @@ def fail_stale_uploads(db: Session) -> int:
     )
     db.commit()
     return result.rowcount
+
+
+# --- unusual-transaction review ---
+
+def get_review_queue(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> list[Transaction]:
+    """Transactions flagged for review, most unusual first."""
+    stmt = (
+        select(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(Upload.id == upload_id, Upload.user_id == user_id, Transaction.anomaly_rank.is_not(None))
+        .order_by(Transaction.anomaly_rank)
+    )
+    return list(db.scalars(stmt))
+
+
+def get_owned_transaction(db: Session, user_id: uuid.UUID, transaction_id: int) -> Optional[Transaction]:
+    stmt = (
+        select(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(Transaction.id == transaction_id, Upload.user_id == user_id)
+    )
+    return db.scalar(stmt)
+
+
+def set_anomaly_review(db: Session, user_id: uuid.UUID, transaction_id: int, status: str) -> Optional[Transaction]:
+    """Set confirmed/dismissed/unreviewed on a transaction the user owns. Returns None if not found."""
+    stmt = (
+        select(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(Transaction.id == transaction_id, Upload.user_id == user_id)
+    )
+    txn = db.scalar(stmt)
+    if txn is None:
+        return None
+    txn.anomaly_review_status = status
+    db.commit()
+    db.refresh(txn)
+    return txn

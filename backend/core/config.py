@@ -98,9 +98,7 @@ ARTIFACT_DIR = BASE_DIR / "backend" / "artifacts" / "categorizer"
 # ML Config
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
-ANOMALY_CONTAMINATION = 0.05
-MAX_CLUSTERS = 8
-MIN_CLUSTERS = 2
+REVIEW_CAPACITY = 10  # how many unusual transactions a person is asked to review per upload
 PREDICTION_DAYS = 31
 MAX_TRAINING_SAMPLES = 10000
 MAX_TFIDF_FEATURES = 1000
