@@ -2,6 +2,8 @@
 
 A production-quality, full-stack machine learning application that analyzes financial transaction data. It provides automated insights including expense categorization, spending predictions, anomaly detection, and user segmentation through a modern React dashboard.
 
+**Live Demo**: [finance-analyzer-5n87ronca-shaurya-9039.vercel.app](https://finance-analyzer-5n87ronca-shaurya-9039.vercel.app)
+
 ## Features
 
 | Feature | Description | Model |

@@ -8,7 +8,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Database — use env var for cloud (e.g. PostgreSQL), fall back to SQLite for local dev
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'finance_analyzer.db'}")
+DATABASE_URL = os.getenv("DATABASE_URL") or f"sqlite:///{BASE_DIR / 'finance_analyzer.db'}"
 
 # File storage
 UPLOAD_DIR = BASE_DIR / "data" / "uploads"
