@@ -122,7 +122,8 @@ def test_baseline_repeats_the_last_week():
 
 @pytest.mark.parametrize(
     "history_days,expected_horizon",
-    [(90, 14), (99, 14), (100, 21), (112, 21), (120, 31), (361, 31)],
+    # A horizon of h days needs 3 folds: origins 56, 63, 70 -> the last fold ends at 70 + h, so n >= 70 + h.
+    [(90, 14), (91, 21), (100, 21), (101, 31), (361, 31)],
 )
 def test_backtest_uses_the_longest_horizon_that_still_gives_enough_folds(history_days, expected_horizon):
     assert fc.pick_horizon(history_days) == expected_horizon
