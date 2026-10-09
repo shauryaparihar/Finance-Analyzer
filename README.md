@@ -32,7 +32,7 @@ A production-quality, full-stack machine learning application that analyzes fina
 └─────────────────────────────┘     │  └────────────────────────┘  │
                                     │                              │
                                     │  ┌────────────────────────┐  │
-                                    │  │ SQLite Database        │  │
+                                    │  │ PostgreSQL Database    │  │
                                     │  └────────────────────────┘  │
                                     └──────────────────────────────┘
 ```
@@ -62,6 +62,8 @@ python scripts/generate_sample_data.py
 
 Start the backend server:
 ```bash
+docker compose up -d db          # PostgreSQL
+alembic upgrade head             # create/upgrade the database schema
 python -m uvicorn backend.main:app --reload --port 8000
 ```
 
@@ -104,7 +106,7 @@ Uploaded files should follow this structure:
 ## Tech Stack
 
 - **Frontend**: React 18, Vite, Tailwind CSS, Recharts
-- **Backend**: FastAPI, SQLAlchemy, SQLite
+- **Backend**: FastAPI, SQLAlchemy, Alembic, PostgreSQL
 - **ML**: Scikit-Learn, XGBoost, Statsmodels
 - **Data**: Pandas, NumPy
 
@@ -139,6 +141,6 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 |----------|-------|-------------|
 | `ENVIRONMENT` | Render | Set to `production` to restrict CORS |
 | `FRONTEND_URL` | Render | Vercel domain for CORS allowlist |
-| `DATABASE_URL` | Render | DB connection string (defaults to SQLite) |
+| `DATABASE_URL` | Render | PostgreSQL connection string (`postgresql+psycopg://...`; defaults to the local Docker database) |
 | `VITE_API_URL` | Vercel | Backend URL for API calls |
 

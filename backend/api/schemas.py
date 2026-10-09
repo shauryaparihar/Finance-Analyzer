@@ -7,10 +7,11 @@ from pydantic import BaseModel
 
 
 class UploadResponse(BaseModel):
-    upload_id: int
+    upload_id: str
     filename: str
     num_rows: int
     status: str
+    amount_convention: str
     message: str
 
 
@@ -27,7 +28,7 @@ class TransactionOut(BaseModel):
 
 
 class UploadInfo(BaseModel):
-    id: int
+    id: str
     filename: str
     upload_date: str
     num_rows: int

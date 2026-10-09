@@ -1,6 +1,7 @@
 """
 Utility functions.
 """
+import math
 from typing import Any, Dict
 
 import numpy as np
@@ -67,20 +68,25 @@ def calculate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
 
 
 def safe_json_serializable(obj):
-    """Convert numpy/pandas types to Python native types for JSON serialization."""
+    """Convert numpy/pandas types to plain Python values that PostgreSQL JSONB accepts (no NaN/Infinity)."""
+    if obj is None or obj is pd.NaT:
+        return None
+    if isinstance(obj, (bool, np.bool_)):
+        return bool(obj)
     if isinstance(obj, (np.integer,)):
         return int(obj)
-    elif isinstance(obj, (np.floating,)):
-        return float(obj)
-    elif isinstance(obj, np.ndarray):
-        return obj.tolist()
-    elif isinstance(obj, pd.Timestamp):
+    if isinstance(obj, (float, np.floating)):
+        value = float(obj)
+        return value if math.isfinite(value) else None
+    if isinstance(obj, np.ndarray):
+        return safe_json_serializable(obj.tolist())
+    if isinstance(obj, pd.Timestamp):
         return obj.isoformat()
-    elif isinstance(obj, pd.Period):
+    if isinstance(obj, pd.Period):
         return str(obj)
-    elif isinstance(obj, dict):
-        return {k: safe_json_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
+    if isinstance(obj, dict):
+        return {str(k): safe_json_serializable(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
         return [safe_json_serializable(i) for i in obj]
     return obj
 

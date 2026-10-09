@@ -3,12 +3,13 @@ FastAPI application entry point.
 """
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from backend.api.routes import router
 from backend.core.config import FRONTEND_URL
-from backend.core.database import init_db
+from backend.core.database import engine
 
 app = FastAPI(
     title="Personal Finance Analyzer & Expense Predictor",
@@ -38,13 +39,6 @@ app.add_middleware(
 app.include_router(router)
 
 
-@app.on_event("startup")
-async def startup():
-    """Initialize database on startup."""
-    init_db()
-    print("🚀 Finance Analyzer API is running!")
-
-
 @app.get("/")
 async def root():
     return {
@@ -54,7 +48,18 @@ async def root():
     }
 
 
-@app.get("/health")
-async def health():
+@app.get("/healthz")
+async def healthz():
+    """Liveness: the process is up. Deliberately checks nothing else."""
     return {"status": "healthy"}
 
+
+@app.get("/readyz")
+async def readyz():
+    """Readiness: the database answers. (The model artifact check is added with the categorizer.)"""
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"status": "ready"}
