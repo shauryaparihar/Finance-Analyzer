@@ -8,8 +8,9 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
 import pandas as pd
-from sqlalchemy import and_, delete, func, insert, or_, select, update
+from sqlalchemy import and_, delete, func, insert, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, UploadInput, User
@@ -133,8 +134,11 @@ def delete_upload(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> bool
 
 # --- transactions ---
 
-def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.DataFrame) -> int:
-    """Bulk-insert processed transactions into an upload owned by user_id."""
+def store_transactions(
+    db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.DataFrame, commit: bool = True
+) -> int:
+    """Bulk-insert processed transactions into an upload owned by user_id. commit=False lets a caller group this
+    with other writes in one transaction."""
     if get_upload(db, user_id, upload_id) is None:
         raise LookupError("Upload not found")
 
@@ -162,7 +166,8 @@ def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df
         )
     if rows:
         db.execute(insert(Transaction), rows)
-    db.commit()
+    if commit:
+        db.commit()
     return len(rows)
 
 
@@ -250,6 +255,7 @@ def upsert_analysis_result(
     result_type: str,
     payload: Any,
     model_version: Optional[str] = None,
+    commit: bool = True,
 ) -> None:
     if model_version is None and isinstance(payload, dict):
         model_version = payload.get("model_version")
@@ -267,7 +273,8 @@ def upsert_analysis_result(
         set_={"payload": stmt.excluded.payload, "model_version": stmt.excluded.model_version},
     )
     db.execute(stmt)
-    db.commit()
+    if commit:
+        db.commit()
 
 
 def get_analysis_result(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, result_type: str) -> Optional[Any]:
@@ -366,17 +373,37 @@ def require_claim(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_
         raise ClaimLost(f"{upload_id} is no longer claimed by {worker_id}")
 
 
+def lock_claim(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_id: str) -> None:
+    """Lock the job row and verify this worker still owns it. The lock is held until the caller commits or rolls
+    back, so a reaper (which skips locked rows) cannot hand the job to another worker in the middle of the writes."""
+    owner = db.execute(
+        select(Upload.claimed_by, Upload.status)
+        .where(Upload.id == upload_id, Upload.user_id == user_id)
+        .with_for_update()
+    ).one_or_none()
+    if owner is None:
+        raise LookupError("Upload not found")
+    if owner.claimed_by != worker_id or owner.status != "processing":
+        raise ClaimLost(f"{upload_id} is no longer claimed by {worker_id}")
+
+
 def get_job_input(db: Session, upload_id: uuid.UUID) -> Optional[bytes]:
     return db.scalar(select(UploadInput.data).where(UploadInput.upload_id == upload_id))
 
 
 def beat(db: Session, upload_id: uuid.UUID, worker_id: str) -> bool:
-    """Prove the job is still alive. Returns False if this worker no longer owns it."""
-    result = db.execute(
-        update(Upload)
-        .where(Upload.id == upload_id, Upload.claimed_by == worker_id, Upload.status == "processing")
-        .values(heartbeat_at=func.now())
-    )
+    """Prove the job is still alive. Returns False if this worker no longer owns it. If the job row is locked (the
+    worker is saving its results), skip this beat: the lock itself shows the job is alive."""
+    db.execute(text("SET LOCAL lock_timeout = '1s'"))
+    try:
+        result = db.execute(
+            update(Upload)
+            .where(Upload.id == upload_id, Upload.claimed_by == worker_id, Upload.status == "processing")
+            .values(heartbeat_at=func.now())
+        )
+    except OperationalError:
+        db.rollback()
+        return True
     db.commit()
     return result.rowcount > 0
 

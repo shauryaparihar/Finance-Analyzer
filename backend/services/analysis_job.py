@@ -97,10 +97,13 @@ def run_analysis_job(
             repo.update_upload_status(db, user_id, upload_id, "failed", "The file could not be processed.", worker_id)
             status, failed_modules = "failed", ["preprocessing"]
         else:
-            repo.require_claim(db, user_id, upload_id, worker_id)  # fencing: do not write results for a job we lost
-            repo.store_transactions(db, user_id, upload_id, results["processed_df"])
+            # One transaction: lock the job row (proving we still own it, and keeping a reaper away), write the
+            # transactions and results, set the final status, delete the input, commit. Either all of it happens
+            # while this worker owns the job, or none of it does.
+            repo.lock_claim(db, user_id, upload_id, worker_id)
+            repo.store_transactions(db, user_id, upload_id, results["processed_df"], commit=False)
             for name, payload in results["modules"].items():
-                repo.upsert_analysis_result(db, user_id, upload_id, name, payload)
+                repo.upsert_analysis_result(db, user_id, upload_id, name, payload, commit=False)
             runs = repo.list_runs(db, user_id, upload_id)
             status = overall_status(runs)
             failed_modules = [r.module for r in runs if r.status == "failed"]
@@ -108,7 +111,7 @@ def run_analysis_job(
                 "Some analysis steps failed: " + ", ".join(failed_modules) + "."
                 if status == "partial" else "Analysis failed."
             )
-            repo.update_upload_status(db, user_id, upload_id, status, summary, worker_id)
+            repo.update_upload_status(db, user_id, upload_id, status, summary, worker_id)  # commits everything
 
         modules = results.get("modules", {})
         log_event(

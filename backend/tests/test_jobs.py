@@ -604,3 +604,147 @@ def test_the_inline_test_runner_runs_queued_jobs_when_woken(db, factory):
     runner = InlineJobRunner(factory, lambda factory_, **claim: _complete(factory_, **claim), lambda: True, "t")
     runner.wake()
     assert _status(factory, upload.id) == "completed"
+
+
+# --- the write phase is one atomic, locked transaction ---
+
+def test_saving_results_is_all_or_nothing(claimed, monkeypatch, db):
+    factory, user, upload, job = claimed
+    calls = {"n": 0}
+    real = repo.upsert_analysis_result
+
+    def fail_on_second_result(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 2:
+            raise RuntimeError("database hiccup while saving")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(repo, "upsert_analysis_result", fail_on_second_result)
+    final, _ = _go(claimed, monkeypatch, _fake_pipeline())
+    db.expire_all()
+    assert calls["n"] == 2
+    assert db.scalar(select(func.count()).select_from(Transaction).where(Transaction.upload_id == upload.id)) == 0
+    assert db.scalar(select(func.count()).select_from(AnalysisResult).where(AnalysisResult.upload_id == upload.id)) == 0
+    assert final.status == "failed"  # recorded as a failure; no half-written results are left behind
+
+
+def test_a_reaper_cannot_take_a_job_while_its_owner_is_saving_results(db, factory):
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as session:
+        repo.claim_next_job(session, "w1")
+    _kill_worker(db, upload, worker="w1")  # w1 has been silent for minutes, but it is still the owner
+    locked, release = threading.Event(), threading.Event()
+    outcome = {}
+
+    def owner_saves_results():
+        with factory() as session:
+            repo.lock_claim(session, user.id, upload.id, "w1")  # the lock is held from here until commit
+            locked.set()
+            release.wait(5)
+            repo.update_upload_status(session, user.id, upload.id, "completed", worker_id="w1")
+
+    thread = threading.Thread(target=owner_saves_results)
+    thread.start()
+    assert locked.wait(5)
+    began = time.monotonic()
+    with factory() as session:
+        outcome["reaper"] = repo.reap_orphaned_jobs(session, stale_after_seconds=60, max_attempts=3)
+    outcome["waited"] = time.monotonic() - began
+    release.set()
+    thread.join()
+    db.expire_all()
+    assert outcome["reaper"] == {"requeued": 0, "failed": 0}  # the locked row was skipped, not taken
+    assert outcome["waited"] < 1.0  # ... and the reaper did not sit waiting for the lock
+    job = db.get(Upload, upload.id)
+    assert job.status == "completed" and job.attempts == 1  # the owner finished its own job exactly once
+
+
+def test_the_heartbeat_does_not_hang_behind_the_save_lock(db, factory):
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as session:
+        repo.claim_next_job(session, "w1")
+    holder = factory()
+    repo.lock_claim(holder, user.id, upload.id, "w1")
+    began = time.monotonic()
+    with factory() as session:
+        alive = repo.beat(session, upload.id, "w1")
+    holder.rollback()
+    holder.close()
+    assert alive is True and time.monotonic() - began < 3.0  # skipped quickly instead of waiting for the lock
+
+
+def test_a_lost_claim_leaves_the_input_for_the_new_owner(db, factory, monkeypatch):
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as session:
+        job = repo.claim_next_job(session, "w1")
+
+    def claim_stolen(df, categorizer, observer=None):
+        with factory() as session:
+            _kill_worker(session, upload, worker="w1")
+            repo.reap_orphaned_jobs(session, 60, 3)
+            repo.claim_next_job(session, "w2")
+        return _fake_pipeline()(df, categorizer, observer=None)
+
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", claim_stolen)
+    run_analysis_job(factory, user.id, upload.id, None, "w1", attempts=job.attempts)
+    assert repo.get_job_input(db, upload.id) is not None  # w2 still needs it; the stale worker must not delete it
+
+
+# --- the stored input never outlives its job ---
+
+@pytest.mark.parametrize(
+    "scenario,expected_status",
+    [
+        ("completed", "completed"),
+        ("partial", "partial"),
+        ("all_failed", "failed"),
+        ("preprocessing_failed", "failed"),
+        ("crash", "failed"),
+        ("input_missing", "failed"),
+    ],
+)
+def test_the_stored_input_is_deleted_however_the_job_ends(claimed, monkeypatch, db, scenario, expected_status):
+    factory, user, upload, job = claimed
+    pipelines = {
+        "completed": _fake_pipeline(),
+        "partial": _fake_pipeline(failed=("anomaly",)),
+        "all_failed": _fake_pipeline(failed=MODULES),
+        "preprocessing_failed": _fake_pipeline(preprocessing_fails=True),
+        "crash": _fake_pipeline(crash=True),
+        "input_missing": _fake_pipeline(),
+    }
+    if scenario == "input_missing":
+        db.execute(text("DELETE FROM upload_inputs"))
+        db.commit()
+    final, _ = _go(claimed, monkeypatch, pipelines[scenario])
+    assert final.status == expected_status
+    assert repo.get_job_input(db, upload.id) is None
+    assert db.scalar(select(func.count()).select_from(UploadInput).where(UploadInput.upload_id == upload.id)) == 0
+
+
+def test_the_real_job_holds_the_lock_while_saving_so_a_reaper_cannot_steal_it_mid_write(db, factory, monkeypatch):
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as session:
+        job = repo.claim_next_job(session, "w1")
+    _kill_worker(db, upload, worker="w1")  # silent for minutes: a reaper would normally take this job
+    seen = {}
+    real = repo.upsert_analysis_result
+
+    def spy(*args, **kwargs):
+        if "reaper" not in seen:  # first save call: the job is in the middle of its write phase
+            began = time.monotonic()
+            with factory() as other:
+                seen["reaper"] = repo.reap_orphaned_jobs(other, stale_after_seconds=60, max_attempts=3)
+            seen["waited"] = time.monotonic() - began
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(repo, "upsert_analysis_result", spy)
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", _fake_pipeline())
+    run_analysis_job(factory, user.id, upload.id, None, "w1", attempts=job.attempts)
+    db.expire_all()
+    assert seen["reaper"] == {"requeued": 0, "failed": 0} and seen["waited"] < 1.0
+    assert db.get(Upload, upload.id).status == "completed" and db.get(Upload, upload.id).attempts == 1
