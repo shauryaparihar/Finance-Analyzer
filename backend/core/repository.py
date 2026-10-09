@@ -3,7 +3,7 @@ Data-access functions. Every function that touches user-owned data takes the use
 applies it inside the SQL query, so another user's rows can never be returned or changed.
 """
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
@@ -12,7 +12,7 @@ from sqlalchemy import and_, delete, func, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, User
+from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, UploadInput, User
 from backend.utils.helpers import safe_json_serializable
 
 TERMINAL_UPLOAD_STATUSES = {"completed", "partial", "failed"}
@@ -28,6 +28,10 @@ ALLOWED_TRANSITIONS = {
 
 class InvalidStatusTransition(ValueError):
     pass
+
+
+class ClaimLost(RuntimeError):
+    """This worker no longer owns the job (its heartbeat lapsed and the job was handed to another attempt)."""
 ACTIVE_UPLOAD_STATUSES = ("queued", "processing")
 
 
@@ -93,17 +97,29 @@ def list_uploads(db: Session, user_id: uuid.UUID, limit: int = 50, offset: int =
 
 
 def update_upload_status(
-    db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, status: str, error_summary: Optional[str] = None
+    db: Session,
+    user_id: uuid.UUID,
+    upload_id: uuid.UUID,
+    status: str,
+    error_summary: Optional[str] = None,
+    worker_id: Optional[str] = None,
 ) -> bool:
-    upload = get_upload(db, user_id, upload_id)
+    """Move an upload to a new status. With worker_id, only the worker that still owns the claim may do it."""
+    stmt = select(Upload).where(Upload.id == upload_id, Upload.user_id == user_id)
+    if worker_id is not None:
+        stmt = stmt.with_for_update()  # lock the row so a concurrent reaper cannot change it under us
+    upload = db.scalar(stmt)
     if upload is None:
         return False
+    if worker_id is not None and (upload.claimed_by != worker_id or upload.status != "processing"):
+        raise ClaimLost(f"{upload_id} is no longer claimed by {worker_id}")
     if status not in ALLOWED_TRANSITIONS.get(upload.status, set()):
         raise InvalidStatusTransition(f"{upload.status} -> {status}")
     upload.status = status
     upload.error_summary = error_summary
     if status in TERMINAL_UPLOAD_STATUSES:
         upload.completed_at = datetime.now(timezone.utc)
+        db.execute(delete(UploadInput).where(UploadInput.upload_id == upload_id))  # the input is no longer needed
     db.commit()
     return True
 
@@ -292,25 +308,125 @@ def has_active_upload(db: Session, user_id: uuid.UUID) -> bool:
     return db.scalar(stmt) is not None
 
 
-def fail_stale_uploads(db: Session, reason: str = "Analysis was interrupted by a server restart.") -> int:
-    """Mark uploads left queued/processing as failed, and close their open module runs, so users are never
-    blocked by (or shown) a job that is no longer running. Only valid while a single application instance runs."""
-    stale_ids = list(db.scalars(select(Upload.id).where(Upload.status.in_(ACTIVE_UPLOAD_STATUSES))))
-    if not stale_ids:
-        return 0
-    now = datetime.now(timezone.utc)
-    db.execute(
-        update(Upload)
-        .where(Upload.id.in_(stale_ids))
-        .values(status="failed", error_summary=reason, completed_at=now)
+def enqueue_upload(
+    db: Session,
+    user_id: uuid.UUID,
+    filename: str,
+    content_sha256: str,
+    row_count: int,
+    amount_convention: str,
+    input_data: bytes,
+    request_id: Optional[str] = None,
+) -> Upload:
+    """Queue a job: the upload, its pending module runs and its input are saved together or not at all."""
+    upload = Upload(
+        user_id=user_id,
+        original_filename=filename,
+        content_sha256=content_sha256,
+        row_count=row_count,
+        amount_convention=amount_convention,
+        request_id=request_id,
     )
-    db.execute(
-        update(AnalysisRun)
-        .where(AnalysisRun.upload_id.in_(stale_ids), AnalysisRun.status.in_(("pending", "running")))
-        .values(status="failed", error_code="INTERRUPTED", error_message=reason, finished_at=now)
+    db.add(upload)
+    db.flush()  # raises IntegrityError here if the user already has an active job (partial unique index)
+    db.add(UploadInput(upload_id=upload.id, data=input_data))
+    db.execute(insert(AnalysisRun), [{"upload_id": upload.id, "module": m, "status": "pending"} for m in MODULES])
+    db.commit()
+    db.refresh(upload)
+    return upload
+
+
+def claim_next_job(db: Session, worker_id: str) -> Optional[Upload]:
+    """Atomically take the oldest queued job. SKIP LOCKED means workers (in any instance) never wait for or
+    double-take the same row."""
+    stmt = (
+        select(Upload).where(Upload.status == "queued").order_by(Upload.created_at).limit(1).with_for_update(skip_locked=True)
+    )
+    upload = db.scalar(stmt)
+    if upload is None:
+        db.rollback()
+        return None
+    upload.status = "processing"
+    upload.claimed_by = worker_id
+    upload.heartbeat_at = func.now()
+    upload.attempts = upload.attempts + 1
+    db.commit()
+    db.refresh(upload)
+    return upload
+
+
+def require_claim(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_id: str) -> None:
+    """Fencing: raise ClaimLost unless this worker still owns the processing job."""
+    owner = db.execute(
+        select(Upload.claimed_by, Upload.status).where(Upload.id == upload_id, Upload.user_id == user_id)
+    ).one_or_none()
+    if owner is None:
+        raise LookupError("Upload not found")
+    if owner.claimed_by != worker_id or owner.status != "processing":
+        raise ClaimLost(f"{upload_id} is no longer claimed by {worker_id}")
+
+
+def get_job_input(db: Session, upload_id: uuid.UUID) -> Optional[bytes]:
+    return db.scalar(select(UploadInput.data).where(UploadInput.upload_id == upload_id))
+
+
+def beat(db: Session, upload_id: uuid.UUID, worker_id: str) -> bool:
+    """Prove the job is still alive. Returns False if this worker no longer owns it."""
+    result = db.execute(
+        update(Upload)
+        .where(Upload.id == upload_id, Upload.claimed_by == worker_id, Upload.status == "processing")
+        .values(heartbeat_at=func.now())
     )
     db.commit()
-    return len(stale_ids)
+    return result.rowcount > 0
+
+
+def reset_for_retry(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> None:
+    """Clear what a previous, interrupted attempt may have written so the retry starts clean (no duplicates)."""
+    if get_upload(db, user_id, upload_id) is None:
+        raise LookupError("Upload not found")
+    db.execute(delete(Transaction).where(Transaction.upload_id == upload_id))
+    db.execute(delete(AnalysisResult).where(AnalysisResult.upload_id == upload_id))
+    db.execute(
+        update(AnalysisRun)
+        .where(AnalysisRun.upload_id == upload_id)
+        .values(
+            status="pending", duration_ms=None, model_version=None, error_code=None, error_message=None,
+            started_at=None, finished_at=None,
+        )
+    )
+    db.commit()
+
+
+def reap_orphaned_jobs(db: Session, stale_after_seconds: float, max_attempts: int) -> dict[str, int]:
+    """Recover jobs whose worker died (no heartbeat for stale_after_seconds): re-queue them, or fail them once they
+    have been attempted max_attempts times. Jobs with a fresh heartbeat are never touched, whichever instance runs
+    them. Time is measured by the database, so instances need no synchronised clocks."""
+    cutoff = func.now() - timedelta(seconds=stale_after_seconds)
+    orphans = list(
+        db.scalars(
+            select(Upload)
+            .where(Upload.status == "processing", Upload.heartbeat_at < cutoff)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    requeued = failed = 0
+    for upload in orphans:
+        if upload.attempts < max_attempts:
+            upload.status, upload.claimed_by, upload.heartbeat_at = "queued", None, None
+            requeued += 1
+        else:
+            reason = "Analysis was interrupted repeatedly and was given up."
+            upload.status, upload.error_summary, upload.completed_at = "failed", reason, datetime.now(timezone.utc)
+            db.execute(delete(UploadInput).where(UploadInput.upload_id == upload.id))
+            db.execute(
+                update(AnalysisRun)
+                .where(AnalysisRun.upload_id == upload.id, AnalysisRun.status.in_(("pending", "running")))
+                .values(status="failed", error_code="INTERRUPTED", error_message=reason, finished_at=datetime.now(timezone.utc))
+            )
+            failed += 1
+    db.commit()
+    return {"requeued": requeued, "failed": failed}
 
 
 def count_active_uploads(db: Session) -> int:

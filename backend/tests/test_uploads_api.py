@@ -146,15 +146,6 @@ def test_database_blocks_a_second_active_upload_even_without_the_app_check(db):
         repo.create_upload(db, user.id, "two.csv", "b" * 64, 1)
 
 
-def test_stale_jobs_are_failed_on_startup_so_users_are_not_locked_out(db):
-    user = repo.create_user(db, "x@example.com", "hash")
-    upload = repo.create_upload(db, user.id, "one.csv", "a" * 64, 1)
-    assert repo.fail_stale_uploads(db) == 1
-    db.refresh(upload)
-    assert upload.status == "failed" and upload.error_summary
-    assert repo.has_active_upload(db, user.id) is False
-
-
 def test_pipeline_crash_marks_upload_failed_without_leaking_details(client, monkeypatch):
     from backend.services import analysis_job
 

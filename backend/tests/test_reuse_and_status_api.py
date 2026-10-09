@@ -12,26 +12,6 @@ def _upload(client, headers, content=CSV_OK, name="data.csv", **params):
     return client.post("/api/uploads", headers=headers, files=csv_file(content, name), params=params)
 
 
-class HoldRunner:
-    """Accepts jobs but does not run them, to look at the system between 'accepted' and 'done'."""
-
-    workers, is_running = 1, True
-
-    def __init__(self):
-        self.jobs = []
-
-    def submit(self, fn, *args, **kwargs):
-        self.jobs.append((fn, args, kwargs))
-
-    def run_all(self):
-        for fn, args, kwargs in self.jobs:
-            fn(*args, **kwargs)
-        self.jobs.clear()
-
-    def shutdown(self):
-        self.is_running = False
-
-
 # --- the status endpoint shows each module ---
 
 def test_status_lists_every_module_with_timing_and_model_version(client):
@@ -46,15 +26,15 @@ def test_status_lists_every_module_with_timing_and_model_version(client):
 
 
 def test_between_acceptance_and_completion_the_upload_is_queued_with_pending_modules(client, monkeypatch):
-    runner = HoldRunner()
-    monkeypatch.setattr(main.app.state, "job_runner", runner, raising=False)
+    runner = main.app.state.job_runner
+    monkeypatch.setattr(runner, "wake", lambda: None)  # nobody picks the job up yet: it just waits in the database
     headers = register_and_login(client)
     response = _upload(client, headers)
     assert response.status_code == 202 and response.json()["status"] == "queued"
     upload_id = response.json()["upload_id"]
     queued = client.get(f"/api/uploads/{upload_id}/status", headers=headers).json()
     assert queued["status"] == "queued" and {m["status"] for m in queued["modules"]} == {"pending"}
-    runner.run_all()
+    assert runner.drain() == 1  # a worker finds it in the queue and runs it
     assert client.get(f"/api/uploads/{upload_id}/status", headers=headers).json()["status"] == "completed"
 
 

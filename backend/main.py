@@ -2,6 +2,9 @@
 FastAPI application entry point.
 """
 import logging
+import os
+import socket
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,11 +14,11 @@ from sqlalchemy import text
 from backend.api.auth import router as auth_router
 from backend.api.errors import AppError, register_error_handling
 from backend.api.routes import router
-from backend.core import repository as repo
 from backend.core.config import cors_origins, settings, validate_runtime_settings
 from backend.core.database import SessionLocal, engine
 from backend.core.logging import configure_logging, log_event
 from backend.ml.categorizer import ModelLoadError, load_categorizer
+from backend.services.analysis_job import make_processor
 from backend.services.jobs import JobRunner
 
 logger = logging.getLogger("finsight.api")
@@ -32,25 +35,29 @@ async def lifespan(app: FastAPI):
     except ModelLoadError as e:
         app.state.categorizer = None
         log_event(logger, logging.ERROR, "categorizer_unavailable", reason=str(e))
-    # Anything still queued/processing belongs to a previous run of this process: mark it failed so no one is blocked.
-    try:
-        with SessionLocal() as db:
-            stale = repo.fail_stale_uploads(db)
-        if stale:
-            log_event(logger, logging.WARNING, "stale_uploads_marked_failed", count=stale)
-    except Exception:
-        log_event(logger, logging.ERROR, "startup_stale_upload_sweep_failed", exc_info=True)
-    app.state.job_runner = JobRunner(settings.analysis_workers)
-    log_event(logger, logging.INFO, "app_started", workers=settings.analysis_workers, environment=settings.environment)
+    # Start this instance's workers. Jobs are claimed from the shared PostgreSQL queue, so other instances can run
+    # alongside, and a job interrupted by a restart or crash is recovered from its stale heartbeat (not failed).
+    instance_id = f"{socket.gethostname()}-{os.getpid()}-{uuid.uuid4().hex[:6]}"
+    app.state.job_runner = JobRunner(
+        SessionLocal,
+        make_processor(lambda: app.state.categorizer),
+        is_ready=lambda: app.state.categorizer is not None,
+        instance_id=instance_id,
+        workers=settings.analysis_workers,
+        poll_seconds=settings.job_poll_seconds,
+        heartbeat_seconds=settings.job_heartbeat_seconds,
+        stale_after_seconds=settings.job_stale_after_seconds,
+        max_attempts=settings.job_max_attempts,
+    )
+    app.state.job_runner.start()
+    log_event(
+        logger, logging.INFO, "app_started",
+        instance_id=instance_id, workers=settings.analysis_workers, environment=settings.environment,
+    )
     yield
-    # Shutdown: stop taking work, let a running analysis finish, cancel queued ones and record that they were cancelled.
+    # Shutdown: stop claiming work and let running jobs finish. Queued jobs stay queued for the next worker.
     app.state.job_runner.shutdown()
-    try:
-        with SessionLocal() as db:
-            cancelled = repo.fail_stale_uploads(db, reason="Analysis was cancelled because the server shut down.")
-        log_event(logger, logging.INFO, "app_stopped", cancelled_jobs=cancelled)
-    except Exception:
-        log_event(logger, logging.ERROR, "shutdown_cleanup_failed", exc_info=True)
+    log_event(logger, logging.INFO, "app_stopped", instance_id=instance_id)
 
 
 app = FastAPI(

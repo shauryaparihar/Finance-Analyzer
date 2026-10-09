@@ -10,12 +10,12 @@ import time
 import uuid
 from typing import Callable, Optional
 
-import pandas as pd
 from sqlalchemy.orm import Session
 
 from backend.core import repository as repo
 from backend.core.logging import log_event, request_id_var
 from backend.ml.pipeline import ModuleOutcome, run_full_pipeline
+from backend.services.job_input import decode_input
 
 logger = logging.getLogger("finsight.jobs")
 
@@ -58,29 +58,46 @@ def overall_status(runs) -> str:
     return "partial" if any(r.status == "completed" for r in runs) else "failed"
 
 
+def make_processor(get_categorizer: Callable[[], object]) -> Callable[..., None]:
+    """Build the function a worker calls for each claimed job."""
+
+    def process(session_factory, *, worker_id: str, user_id: uuid.UUID, upload_id: uuid.UUID, attempts: int, request_id: Optional[str]) -> None:
+        run_analysis_job(session_factory, user_id, upload_id, get_categorizer(), worker_id, attempts, request_id)
+
+    return process
+
+
 def run_analysis_job(
     session_factory: Callable[[], Session],
     user_id: uuid.UUID,
     upload_id: uuid.UUID,
-    df: pd.DataFrame,
     categorizer,
+    worker_id: str,
+    attempts: int = 1,
     request_id: Optional[str] = None,
 ) -> None:
-    request_id_var.set(request_id)  # tie this background work to the request that started it
+    """Run one claimed job (status already `processing`). Every write is fenced to the claiming worker."""
+    request_id_var.set(request_id)  # tie this work to the request that queued it, even on another instance
     started = time.perf_counter()
     upload_ref = str(upload_id)
     db = session_factory()
     try:
-        repo.update_upload_status(db, user_id, upload_id, "processing")
-        log_event(logger, logging.INFO, "job_started", upload_id=upload_ref, rows=len(df))
+        data = repo.get_job_input(db, upload_id)
+        if data is None:
+            raise MissingInput()
+        df = decode_input(data)
+        if attempts > 1:
+            repo.reset_for_retry(db, user_id, upload_id)  # a previous attempt may have written partial output
+        log_event(logger, logging.INFO, "job_started", upload_id=upload_ref, rows=len(df), attempt=attempts, worker_id=worker_id)
 
         results = run_full_pipeline(df, categorizer, observer=RunRecorder(session_factory, user_id, upload_id))
 
         if results["status"] == "failed":
             repo.close_open_runs(db, user_id, upload_id, "skipped", "PREPROCESSING_FAILED", "The file could not be prepared.")
-            repo.update_upload_status(db, user_id, upload_id, "failed", error_summary="The file could not be processed.")
+            repo.update_upload_status(db, user_id, upload_id, "failed", "The file could not be processed.", worker_id)
             status, failed_modules = "failed", ["preprocessing"]
         else:
+            repo.require_claim(db, user_id, upload_id, worker_id)  # fencing: do not write results for a job we lost
             repo.store_transactions(db, user_id, upload_id, results["processed_df"])
             for name, payload in results["modules"].items():
                 repo.upsert_analysis_result(db, user_id, upload_id, name, payload)
@@ -91,7 +108,7 @@ def run_analysis_job(
                 "Some analysis steps failed: " + ", ".join(failed_modules) + "."
                 if status == "partial" else "Analysis failed."
             )
-            repo.update_upload_status(db, user_id, upload_id, status, error_summary=summary)
+            repo.update_upload_status(db, user_id, upload_id, status, summary, worker_id)
 
         modules = results.get("modules", {})
         log_event(
@@ -100,6 +117,8 @@ def run_analysis_job(
             "job_finished",
             upload_id=upload_ref,
             status=status,
+            attempt=attempts,
+            worker_id=worker_id,
             duration_ms=int((time.perf_counter() - started) * 1000),
             failed_modules=",".join(failed_modules),
             auto_categorized=modules.get("categorization", {}).get("auto_categorized"),
@@ -107,17 +126,31 @@ def run_analysis_job(
             forecast_method=modules.get("forecast", {}).get("method"),
             review_queue_size=modules.get("summary", {}).get("review_queue_size"),
         )
+    except repo.ClaimLost:
+        db.rollback()
+        log_event(logger, logging.WARNING, "job_fenced", upload_id=upload_ref, worker_id=worker_id)
     except LookupError:
         # The user deleted the upload while it was being analysed; there is nothing left to record.
         db.rollback()
         log_event(logger, logging.INFO, "job_abandoned_upload_deleted", upload_id=upload_ref)
-    except Exception:
+    except Exception as exc:
         log_event(logger, logging.ERROR, "job_crashed", upload_id=upload_ref, exc_info=True)
         db.rollback()
-        try:
-            repo.close_open_runs(db, user_id, upload_id, "failed", "JOB_CRASHED", "Analysis failed unexpectedly.")
-            repo.update_upload_status(db, user_id, upload_id, "failed", error_summary="Analysis failed.")
-        except Exception:
-            log_event(logger, logging.ERROR, "job_failure_not_recorded", upload_id=upload_ref, exc_info=True)
+        _record_failure(db, user_id, upload_id, worker_id, missing_input=isinstance(exc, MissingInput))
     finally:
         db.close()
+
+
+class MissingInput(Exception):
+    """The job's stored input is gone, so it cannot be run."""
+
+
+def _record_failure(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_id: str, missing_input: bool) -> None:
+    code, message = ("INPUT_MISSING", "The uploaded data is no longer available.") if missing_input else ("JOB_CRASHED", "Analysis failed unexpectedly.")
+    try:
+        repo.close_open_runs(db, user_id, upload_id, "failed", code, message)
+        repo.update_upload_status(db, user_id, upload_id, "failed", "Analysis failed.", worker_id)
+    except repo.ClaimLost:
+        db.rollback()
+    except Exception:
+        log_event(logger, logging.ERROR, "job_failure_not_recorded", upload_id=str(upload_id), exc_info=True)

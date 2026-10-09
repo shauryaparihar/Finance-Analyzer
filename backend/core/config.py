@@ -27,6 +27,10 @@ class Settings(BaseSettings):
 
     # Analysis jobs and logging
     analysis_workers: int = 2  # analyses that may run at once in this process
+    job_poll_seconds: float = 1.0  # how often an idle worker looks for queued work
+    job_heartbeat_seconds: float = 10.0  # how often a running job proves it is alive
+    job_stale_after_seconds: float = 60.0  # a processing job with no heartbeat for this long is considered dead
+    job_max_attempts: int = 2  # a job whose worker died is re-queued until it has been tried this many times
     max_active_jobs: int = 10  # queued + running analyses across all users before new uploads are refused
     log_level: str = "INFO"
     # Exception messages can echo user data (a bad value, a SQL fragment), so they are never logged unless someone

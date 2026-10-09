@@ -1,7 +1,9 @@
 import uuid
 
+from sqlalchemy import update
+
 from backend.core import repository as repo
-from backend.core.models import AnalysisRun
+from backend.core.models import AnalysisRun, Upload
 from backend.services.ops_report import build_ops_report
 
 
@@ -35,10 +37,13 @@ def test_the_report_answers_the_monitoring_questions_with_aggregates_only(db):
         categorization={"model_version": "tfidf-lr-x", "rows": 50, "auto_categorized": 40, "needs_review": 10},
         forecast={"status": "completed", "method": "seasonal_naive"},
     )
-    _finished_upload(db, user, "failed", [("categorization", "failed", 7, None, "CATEGORIZATION_FAILED")])
+    retried = _finished_upload(db, user, "failed", [("categorization", "failed", 7, None, "CATEGORIZATION_FAILED")])
+    db.execute(update(Upload).where(Upload.id == retried.id).values(attempts=2))
+    db.commit()
 
     report = build_ops_report(db)
     assert report["uploads_by_status"] == {"completed": 1, "partial": 1, "failed": 1}
+    assert report["jobs_retried_after_interruption"] == 1
     assert {(f["module"], f["error_code"], f["count"]) for f in report["failed_modules"]} == {
         ("forecast", "FORECAST_FAILED", 1), ("categorization", "CATEGORIZATION_FAILED", 1)}
     assert report["skipped_modules"] == [{"module": "anomaly", "reason_code": "INSUFFICIENT_DATA", "count": 1}]

@@ -54,7 +54,7 @@ def db(test_engine):
         session.rollback()
         session.close()
         with test_engine.begin() as conn:
-            conn.execute(text("TRUNCATE users, uploads, transactions, analysis_runs, analysis_results, budgets CASCADE"))
+            conn.execute(text("TRUNCATE users, uploads, upload_inputs, transactions, analysis_runs, analysis_results, budgets CASCADE"))
 
 
 @pytest.fixture
@@ -79,13 +79,12 @@ def client(test_engine, db, monkeypatch):
     """
     from fastapi.testclient import TestClient
 
-    import backend.api.routes as routes
     import backend.main as main
     from backend.core.database import get_db
     from backend.main import app
     from backend.ml.pipeline import ModuleOutcome
     from backend.services import analysis_job
-    from backend.services.jobs import SyncJobRunner
+    from backend.services.jobs import InlineJobRunner
 
     factory = sessionmaker(bind=test_engine)
 
@@ -114,8 +113,14 @@ def client(test_engine, db, monkeypatch):
         }
 
     monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="test-model", threshold=0.5), raising=False)
-    monkeypatch.setattr(main.app.state, "job_runner", SyncJobRunner(), raising=False)
-    monkeypatch.setattr(routes, "SessionLocal", factory)
+    runner = InlineJobRunner(
+        factory,
+        analysis_job.make_processor(lambda: main.app.state.categorizer),
+        is_ready=lambda: main.app.state.categorizer is not None,
+        instance_id="test",
+        heartbeat_seconds=60,
+    )
+    monkeypatch.setattr(main.app.state, "job_runner", runner, raising=False)
     monkeypatch.setattr(analysis_job, "run_full_pipeline", fake_pipeline)
     app.dependency_overrides[get_db] = override_get_db
     yield TestClient(app)

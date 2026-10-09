@@ -16,6 +16,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     Numeric,
     String,
     Text,
@@ -59,6 +60,9 @@ class Upload(Base):
         # Not unique: a failed upload may be retried with the same file. Used to find a finished result to reuse.
         Index("ix_uploads_user_id_content_sha256", "user_id", "content_sha256"),
         # At most one queued/processing upload per user, enforced by the database itself.
+        # Workers look for the oldest queued job and for processing jobs with a stale heartbeat.
+        Index("ix_uploads_queued", "created_at", postgresql_where=text("status = 'queued'")),
+        Index("ix_uploads_processing_heartbeat", "heartbeat_at", postgresql_where=text("status = 'processing'")),
         Index(
             "uq_uploads_one_active_per_user",
             "user_id",
@@ -81,6 +85,12 @@ class Upload(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    # Durable job queue: a `queued` upload is a job. A worker claims it (status -> processing, claimed_by = that
+    # worker) and keeps heartbeat_at fresh while it runs; a stale heartbeat means the worker died.
+    claimed_by: Mapped[Optional[str]] = mapped_column(String(100))
+    heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    request_id: Mapped[Optional[str]] = mapped_column(String(64))  # the request that queued it, for log correlation
 
     user: Mapped[User] = relationship(back_populates="uploads")
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="upload", passive_deletes=True)
@@ -168,3 +178,14 @@ class Budget(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="budgets")
+
+
+class UploadInput(Base):
+    """The cleaned input of a queued/running job (gzipped CSV). Deleted when the job finishes, so raw statement
+    data is not kept longer than it is needed to run the analysis."""
+
+    __tablename__ = "upload_inputs"
+
+    upload_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), primary_key=True)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)

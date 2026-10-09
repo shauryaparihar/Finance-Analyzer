@@ -29,13 +29,13 @@ from backend.api.schemas import (
 )
 from backend.core import repository as repo
 from backend.core.config import settings
-from backend.core.database import SessionLocal, get_db
+from backend.core.database import get_db
 from backend.core.logging import log_event, request_id_var
 from backend.core.models import Upload
 from backend.ml.anomaly import DISCLAIMER as ANOMALY_DISCLAIMER
-from backend.services.analysis_job import run_analysis_job
 from backend.services.anomaly_refresh import refresh_anomaly_ranking
 from backend.services.budget_risk import compute_budget_risk
+from backend.services.job_input import encode_input
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
 from backend.utils.helpers import calculate_summary_stats
 
@@ -124,20 +124,21 @@ def create_upload(
     if repo.has_active_upload(db, user_id):
         raise active_error
     try:
-        upload = repo.create_upload(
-            db, user_id, filename, content_sha256, len(ingest.df), amount_convention=ingest.amount_convention
+        # The upload, its pending module runs and its input are saved together: this row IS the queued job.
+        upload = repo.enqueue_upload(
+            db, user_id, filename, content_sha256, len(ingest.df), ingest.amount_convention,
+            encode_input(ingest.df), request_id_var.get(),
         )
     except IntegrityError:  # the database's one-active-upload rule caught a simultaneous request
         db.rollback()
         raise active_error
-    repo.create_runs(db, user_id, upload.id)  # module states exist before any work starts
 
     log_event(
         logger, logging.INFO, "upload_accepted",
         upload_id=str(upload.id), user_id=str(user_id), rows=len(ingest.df), rows_dropped=ingest.rows_dropped,
         amount_convention=ingest.amount_convention,
     )
-    runner.submit(run_analysis_job, SessionLocal, user_id, upload.id, ingest.df, categorizer, request_id_var.get())
+    runner.wake()  # an idle worker (in this or another instance) picks the job up from the database
 
     return UploadAccepted(
         upload_id=upload.id,

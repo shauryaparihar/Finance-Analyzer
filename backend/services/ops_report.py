@@ -18,6 +18,7 @@ from backend.core.models import AnalysisResult, AnalysisRun, Upload
 
 def build_ops_report(db: Session) -> dict[str, Any]:
     jobs = dict(db.execute(select(Upload.status, func.count()).group_by(Upload.status)).all())
+    retried = int(db.scalar(select(func.count()).select_from(Upload).where(Upload.attempts > 1)) or 0)
 
     failures = [
         {"module": module, "error_code": code, "count": count}
@@ -77,6 +78,7 @@ def build_ops_report(db: Session) -> dict[str, Any]:
     )
     return {
         "uploads_by_status": jobs,
+        "jobs_retried_after_interruption": retried,
         "failed_modules": failures,
         "skipped_modules": skipped,
         "module_duration_ms": durations,

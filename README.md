@@ -175,5 +175,5 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 
 - Logs are one JSON object per line on stdout, including the server and migration startup lines (start the server with `--log-config backend/logging_config.json --no-access-log`, as the Dockerfile, Compose file, Procfile and `render.yaml` do) (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.
 - `GET /healthz` is liveness; `GET /readyz` checks the database, the categorizer model and the job runner.
-- Analyses run in a bounded in-process worker pool (`ANALYSIS_WORKERS`, default 2); a restart interrupts a running analysis and the next start marks it failed. See `.env.example` for the settings.
+- Analyses run from a durable queue stored in PostgreSQL: an upload row with status `queued` is the job, workers in every application instance claim jobs with `FOR UPDATE SKIP LOCKED`, and a running job keeps a heartbeat. Queued work survives restarts, several instances can run side by side, and a job whose worker died is re-queued automatically (up to `JOB_MAX_ATTEMPTS`). See `.env.example` for the settings.
 - `python -m backend.services.ops_report` prints aggregate job, failure, timing, model-version and forecast-method counts from the database.
