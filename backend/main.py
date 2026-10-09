@@ -14,6 +14,7 @@ from backend.api.routes import router
 from backend.core import repository as repo
 from backend.core.config import cors_origins, validate_runtime_settings
 from backend.core.database import SessionLocal, engine
+from backend.ml.categorizer import ModelLoadError, load_categorizer
 
 logger = logging.getLogger("finsight.api")
 
@@ -21,6 +22,13 @@ logger = logging.getLogger("finsight.api")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     validate_runtime_settings()  # raises in production if the configuration is unsafe
+    # Load the trusted categorizer once. If it cannot be loaded the app still starts, but /readyz fails
+    # and uploads are refused: we never fall back to silently guessing.
+    try:
+        app.state.categorizer = load_categorizer()
+    except ModelLoadError as e:
+        app.state.categorizer = None
+        logger.error("categorizer_unavailable reason=%s", e)
     try:
         with SessionLocal() as db:
             stale = repo.fail_stale_uploads(db)
@@ -70,10 +78,12 @@ async def healthz():
 
 @app.get("/readyz")
 async def readyz():
-    """Readiness: the database answers. (The model artifact check is added with the categorizer.)"""
+    """Readiness: the database answers and the categorization model is loaded."""
     try:
         with engine.connect() as connection:
             connection.execute(text("SELECT 1"))
     except Exception:
         raise AppError(503, "NOT_READY", "Database unavailable.")
-    return {"status": "ready"}
+    if getattr(app.state, "categorizer", None) is None:
+        raise AppError(503, "NOT_READY", "Categorization model unavailable.")
+    return {"status": "ready", "model_version": app.state.categorizer.version}

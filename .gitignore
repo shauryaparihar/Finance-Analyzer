@@ -86,3 +86,6 @@ docs/interview_notes.md
 .ruff_cache/
 coverage.xml
 .coverage
+
+# Downloaded training data (see backend/ml/prepare_training_data.py)
+data/training/

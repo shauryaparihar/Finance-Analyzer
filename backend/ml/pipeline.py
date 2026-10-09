@@ -2,15 +2,15 @@
 ML Pipeline Orchestrator — runs the full analysis pipeline.
 """
 import concurrent.futures
+import logging
 import traceback
 from typing import Any, Dict
 
 import pandas as pd
 
 from backend.ml.anomaly import detect_anomalies
-from backend.ml.categorizer import predict_categories, train_categorizer
 from backend.ml.predictor import train_predictor
-from backend.ml.preprocessing import prepare_for_classification, prepare_for_regression, preprocess_full
+from backend.ml.preprocessing import prepare_for_regression, preprocess_full
 from backend.ml.segmentation import segment_spending
 from backend.utils.helpers import (
     calculate_summary_stats,
@@ -19,14 +19,18 @@ from backend.utils.helpers import (
     format_segmentation_results,
 )
 
+logger = logging.getLogger("finsight.ml")
 
-def _run_categorization(df):
+
+def _run_categorization(df, categorizer):
+    """Predict a category for every row with the shipped model. Nothing is trained here."""
     try:
-        feature_matrix, labels, vectorizer = prepare_for_classification(df)
-        return train_categorizer(feature_matrix, labels, vectorizer)
-    except Exception as e:
-        traceback.print_exc()
-        return {"error": str(e)}
+        descriptions = df["description"] if "description" in df.columns else pd.Series([None] * len(df), index=df.index)
+        return {"predictions": categorizer.predict(descriptions, df["amount"])}
+    except Exception:
+        logger.exception("categorization_failed")
+        return {"error": "Categorization failed"}
+
 
 def _run_prediction(df):
     try:
@@ -57,7 +61,7 @@ def _run_summary(df):
         traceback.print_exc()
         return {"error": str(e)}
 
-def run_full_pipeline(df: pd.DataFrame) -> Dict[str, Any]:
+def run_full_pipeline(df: pd.DataFrame, categorizer) -> Dict[str, Any]:
     """
     Run the complete ML pipeline on uploaded transaction data concurrently.
     """
@@ -86,7 +90,7 @@ def run_full_pipeline(df: pd.DataFrame) -> Dict[str, Any]:
     print(f"\n🚀 Step 2: Running ML modules concurrently ({MAX_WORKERS} workers)...")
     
     with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        f_cat = executor.submit(_run_categorization, df)
+        f_cat = executor.submit(_run_categorization, df, categorizer)
         f_pred = executor.submit(_run_prediction, df)
         f_anom = executor.submit(_run_anomaly, df)
         f_seg = executor.submit(_run_segmentation, df)
@@ -98,17 +102,32 @@ def run_full_pipeline(df: pd.DataFrame) -> Dict[str, Any]:
         seg_res = f_seg.result()
 
     # Process and assign categorization
+    source = df["category"] if "category" in df.columns else pd.Series([None] * len(df), index=df.index)
+    source = source.where(source.notna() & (source != "Uncategorized"), None)
+    df["predicted_category"] = None
+    df["prediction_confidence"] = None
     if "error" in cat_res:
         results["errors"].append(f"Categorization failed: {cat_res['error']}")
+        df["effective_category"] = source.fillna("Uncategorized")
     else:
-        results["modules"]["categorization"] = cat_res
-        try:
-            from backend.ml.categorizer import load_categorizer
-            model, vec = load_categorizer()
-            if model and vec:
-                df["predicted_category"] = predict_categories(df, vec, model)
-        except Exception:
-            pass
+        predictions = cat_res["predictions"]
+        df["predicted_category"] = predictions["predicted_category"]
+        df["prediction_confidence"] = predictions["confidence"]
+        # Effective category: your own label first, otherwise the model's, otherwise Uncategorized.
+        df["effective_category"] = source.fillna(df["predicted_category"]).fillna("Uncategorized")
+        by_reason = predictions["reason"].value_counts().to_dict()
+        total = len(df)
+        results["modules"]["categorization"] = {
+            "model_version": categorizer.version,
+            "confidence_threshold": categorizer.threshold,
+            "rows": total,
+            "auto_categorized": int((predictions["predicted_category"] != "Uncategorized").sum()),
+            "low_confidence": int(by_reason.get("low_confidence", 0)),
+            "no_description": int(by_reason.get("no_description", 0)),
+            "needs_review": int((df["effective_category"] == "Uncategorized").sum()),
+            "auto_categorized_rate": float((predictions["predicted_category"] != "Uncategorized").mean()) if total else 0.0,
+            "note": "Model trained on synthetic data; low-confidence rows are left Uncategorized for your review.",
+        }
 
     # Process and assign prediction
     if "error" in pred_res:

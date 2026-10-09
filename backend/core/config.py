@@ -92,9 +92,8 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 SAMPLE_DATA_PATH = BASE_DIR / "data" / "sample_transactions.csv"
 
-# Models
-MODEL_DIR = BASE_DIR / "backend" / "models"
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
+# Trusted, versioned model artifacts that ship with the application (never user-supplied files)
+ARTIFACT_DIR = BASE_DIR / "backend" / "artifacts" / "categorizer"
 
 # ML Config
 RANDOM_STATE = 42

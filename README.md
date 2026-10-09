@@ -51,14 +51,23 @@ Install Node.js dependencies for the frontend:
 npm install
 ```
 
-### 2. Generate Sample Data
+### 2. Train the categorizer (optional: a trained model is already included)
+
+```bash
+python -m backend.ml.prepare_training_data   # download the synthetic training data
+python -m backend.ml.train_categorizer       # train + evaluate + write backend/artifacts/categorizer/
+```
+
+See `docs/model_card.md` for what the model can and cannot do. All reported scores are on synthetic data.
+
+### 3. Generate Sample Data
 
 Create a baseline dataset for testing:
 ```bash
 python scripts/generate_sample_data.py
 ```
 
-### 3. Launch the Application
+### 4. Launch the Application
 
 Start the backend server:
 ```bash
@@ -103,7 +112,8 @@ All endpoints except register/login/health need `Authorization: Bearer <token>`.
 | GET | /api/uploads/{id}/summary | Spending summary |
 | GET | /api/uploads/{id}/forecast | Spending forecast |
 | GET | /api/uploads/{id}/anomalies | Unusual transactions |
-| GET | /api/uploads/{id}/transactions | Transactions (`limit`, `offset`) |
+| GET | /api/uploads/{id}/transactions | Transactions (`limit`, `offset`, `review_required`) |
+| PATCH | /api/transactions/{id}/category | Set your own category for a transaction |
 | DELETE | /api/uploads/{id} | Delete an upload and its data |
 | GET | /healthz, /readyz | Liveness and readiness |
 

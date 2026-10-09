@@ -63,6 +63,9 @@ class TransactionOut(BaseModel):
     category: str
     description: Optional[str] = None
     predicted_category: Optional[str] = None
+    prediction_confidence: Optional[float] = None
+    confirmed_category: Optional[str] = None
+    review_required: bool = False
     anomaly_score: Optional[float] = None
     anomaly_rank: Optional[int] = None
 
@@ -78,3 +81,7 @@ class TransactionsPage(BaseModel):
 class ResultOut(BaseModel):
     result_type: str
     data: Any
+
+
+class CategoryUpdate(BaseModel):
+    category: str = Field(min_length=1, max_length=100)

@@ -3,13 +3,12 @@ Anomaly detection using Isolation Forest.
 """
 from typing import Any, Dict
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import LabelEncoder
 
-from backend.core.config import ANOMALY_CONTAMINATION, MODEL_DIR, RANDOM_STATE
+from backend.core.config import ANOMALY_CONTAMINATION, RANDOM_STATE
 
 
 def detect_anomalies(df: pd.DataFrame) -> Dict[str, Any]:
@@ -82,9 +81,6 @@ def detect_anomalies(df: pd.DataFrame) -> Dict[str, Any]:
             "anomaly_score": float(row["anomaly_score"]),
         })
 
-    # Save model
-    model_path = MODEL_DIR / "anomaly.pkl"
-    joblib.dump({"model": iso_forest, "label_encoder": le, "feature_cols": feature_cols}, model_path)
 
     # Score distribution stats
     normal_scores = scores[predictions == 1]
@@ -102,5 +98,4 @@ def detect_anomalies(df: pd.DataFrame) -> Dict[str, Any]:
         },
         "all_scores": scores.tolist(),
         "all_labels": predictions.tolist(),
-        "model_path": str(model_path),
     }

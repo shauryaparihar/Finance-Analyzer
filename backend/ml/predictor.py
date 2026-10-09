@@ -3,14 +3,13 @@ Expense prediction using regression and time series models.
 """
 from typing import Any, Dict
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
 
-from backend.core.config import MODEL_DIR, PREDICTION_DAYS, RANDOM_STATE
+from backend.core.config import PREDICTION_DAYS, RANDOM_STATE
 
 
 def train_predictor(daily_spending: pd.DataFrame) -> Dict[str, Any]:
@@ -91,9 +90,6 @@ def train_predictor(daily_spending: pd.DataFrame) -> Dict[str, Any]:
     future_X = np.array(future_features)
     future_preds = np.maximum(best_model.predict(future_X), 0)
 
-    # Save best model
-    model_path = MODEL_DIR / "predictor.pkl"
-    joblib.dump(best_model, model_path)
 
     # Actual vs predicted for test set
     test_dates = df["date"].iloc[split_idx:].dt.strftime("%Y-%m-%d").tolist()
@@ -112,7 +108,6 @@ def train_predictor(daily_spending: pd.DataFrame) -> Dict[str, Any]:
         "test_dates": test_dates,
         "total_predicted_30d": float(round(future_preds.sum(), 2)),
         "avg_predicted_daily": float(round(future_preds.mean(), 2)),
-        "model_path": str(model_path),
     }
 
 

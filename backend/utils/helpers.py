@@ -28,10 +28,11 @@ def calculate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
         "num_anomalies": int(df["is_anomaly"].sum()) if "is_anomaly" in df.columns else 0,
     }
 
-    # Category breakdown
-    if "category" in df.columns:
+    # Category breakdown, by effective category: confirmed -> your own label -> model prediction -> Uncategorized
+    category_col = "effective_category" if "effective_category" in df.columns else "category"
+    if category_col in df.columns:
         category_spending = (
-            expenses.groupby("category")["amount"]
+            expenses.groupby(category_col)["amount"]
             .agg(["sum", "count"])
             .reset_index()
         )
@@ -59,7 +60,7 @@ def calculate_summary_stats(df: pd.DataFrame) -> Dict[str, Any]:
                     "date": row["date"].strftime("%Y-%m-%d") if pd.notna(row["date"]) else "N/A",
                     "description": row.get("description", "N/A"),
                     "amount": float(row["amount"]),
-                    "category": row.get("category", row.get("predicted_category", "Uncategorized")),
+                    "category": row.get(category_col, "Uncategorized"),
                 }
                 for i, row in recent.iterrows()
             ]

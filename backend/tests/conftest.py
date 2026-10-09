@@ -1,4 +1,6 @@
+import itertools
 import os
+from types import SimpleNamespace
 
 import pandas as pd
 import pytest
@@ -78,6 +80,7 @@ def client(test_engine, db, monkeypatch):
     from fastapi.testclient import TestClient
 
     import backend.api.routes as routes
+    import backend.main as main
     from backend.core.database import get_db
     from backend.main import app
 
@@ -90,7 +93,7 @@ def client(test_engine, db, monkeypatch):
         finally:
             session.close()
 
-    def fake_pipeline(df):
+    def fake_pipeline(df, categorizer):
         return {
             "status": "completed",
             "modules": {
@@ -102,6 +105,7 @@ def client(test_engine, db, monkeypatch):
             "processed_df": df,
         }
 
+    monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="test-model", threshold=0.5), raising=False)
     monkeypatch.setattr(routes, "SessionLocal", factory)
     monkeypatch.setattr(routes, "run_full_pipeline", fake_pipeline)
     app.dependency_overrides[get_db] = override_get_db
@@ -129,3 +133,42 @@ CSV_OK = (
 
 def csv_file(content: bytes = CSV_OK, name: str = "data.csv"):
     return {"file": (name, content, "text/csv")}
+
+
+# --- categorizer fixtures ---
+
+def make_training_frame(categories: int = 6, merchants_per_category: int = 30, stores: int = 6) -> pd.DataFrame:
+    """A small, learnable dataset: each category has its own words, each merchant has a unique name."""
+    category_words = {
+        "Groceries": "supermarket fresh produce",
+        "Restaurants": "diner grill kitchen",
+        "Transportation": "fuel station parking",
+        "Utilities": "electric water power",
+        "Healthcare": "clinic pharmacy dental",
+        "Education": "tuition college course",
+    }
+    syllables = ["ba", "ko", "ri", "tu", "ne", "so", "mi", "va"]
+    names = ("".join(p) for p in itertools.product(syllables, repeat=3))
+    rows = []
+    for category, words in list(category_words.items())[:categories]:
+        for _ in range(merchants_per_category):
+            merchant = next(names)
+            for store in range(stores):
+                rows.append({"description": f"[debit] {words.split()[store % 3]} {merchant} #{1000 + store}", "category": category})
+    return pd.DataFrame(rows)
+
+
+@pytest.fixture(scope="session")
+def trained_small():
+    """(pipeline, results) from the real training code on the small dataset."""
+    from backend.ml.train_categorizer import train_and_evaluate
+
+    return train_and_evaluate(make_training_frame())
+
+
+@pytest.fixture
+def tiny_categorizer(trained_small):
+    from backend.ml.categorizer import Categorizer
+
+    pipeline, results = trained_small
+    return Categorizer(pipeline=pipeline, metadata={"model_version": "tiny-test", "confidence_threshold": 0.5})

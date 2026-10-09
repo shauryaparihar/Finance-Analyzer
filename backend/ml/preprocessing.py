@@ -1,11 +1,8 @@
 """
 Data cleaning and feature engineering for ML pipeline.
 """
-from typing import Tuple
 
-import numpy as np
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 def clean_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -18,13 +15,8 @@ def clean_data(df: pd.DataFrame) -> pd.DataFrame:
     # Handle missing amounts — drop rows with no amount
     df = df.dropna(subset=["amount"])
 
-    # Fill missing descriptions
-    if "description" in df.columns:
-        df["description"] = df["description"].fillna("Unknown transaction")
-
-    # Fill missing categories
-    if "category" in df.columns:
-        df["category"] = df["category"].fillna("Uncategorized")
+    # Missing descriptions/categories stay missing: the categorizer reports "Uncategorized" with a reason
+    # instead of guessing from made-up text.
 
     # Remove rows with zero amount
     df = df[df["amount"] != 0]
@@ -66,46 +58,6 @@ def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     df["abs_amount"] = df["amount"].abs()
 
     return df
-
-
-def prepare_for_classification(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, TfidfVectorizer]:
-    """
-    Prepare features for expense categorization.
-    Uses TF-IDF on description + numerical features.
-    Returns: (feature_matrix, labels, vectorizer)
-    """
-    from backend.core.config import MAX_TFIDF_FEATURES, MAX_TRAINING_SAMPLES
-    
-    # Filter to rows that have categories (for supervised learning)
-    labeled_df = df[df["category"].notna() & (df["category"] != "Uncategorized")].copy()
-
-    if len(labeled_df) == 0:
-        raise ValueError("No labeled data available for classification")
-
-    # Sample for training if dataset is too large
-    if len(labeled_df) > MAX_TRAINING_SAMPLES:
-        labeled_df = labeled_df.sample(n=MAX_TRAINING_SAMPLES, random_state=42)
-
-    # TF-IDF on descriptions
-    vectorizer = TfidfVectorizer(max_features=MAX_TFIDF_FEATURES, stop_words="english", ngram_range=(1, 2))
-    tfidf_matrix = vectorizer.fit_transform(labeled_df["description"].fillna(""))
-
-    # Numerical features
-    num_features = []
-    for col in ["abs_amount", "weekday", "month", "is_weekend", "day_of_month"]:
-        if col in labeled_df.columns:
-            num_features.append(labeled_df[col].values.reshape(-1, 1))
-
-    if num_features:
-        num_matrix = np.hstack(num_features)
-        from scipy.sparse import hstack as sparse_hstack
-        feature_matrix = sparse_hstack([tfidf_matrix, num_matrix])
-    else:
-        feature_matrix = tfidf_matrix
-
-    labels = labeled_df["category"].to_numpy(dtype=str)
-
-    return feature_matrix, labels, vectorizer
 
 
 def prepare_for_regression(df: pd.DataFrame, freq: str = "D") -> pd.DataFrame:

@@ -3,7 +3,6 @@ User/spending segmentation using K-Means clustering.
 """
 from typing import Any, Dict
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans
@@ -11,7 +10,7 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 
-from backend.core.config import MAX_CLUSTERS, MIN_CLUSTERS, MODEL_DIR, RANDOM_STATE
+from backend.core.config import MAX_CLUSTERS, MIN_CLUSTERS, RANDOM_STATE
 
 
 def segment_spending(df: pd.DataFrame) -> Dict[str, Any]:
@@ -122,9 +121,6 @@ def segment_spending(df: pd.DataFrame) -> Dict[str, Any]:
 
         cluster_profiles.append(profile)
 
-    # Save model
-    model_path = MODEL_DIR / "segmentation.pkl"
-    joblib.dump({"model": final_km, "scaler": scaler, "pca": pca}, model_path)
 
     return {
         "best_k": int(best_k),
@@ -145,5 +141,4 @@ def segment_spending(df: pd.DataFrame) -> Dict[str, Any]:
             }
             for _, row in profiles_df.iterrows()
         ],
-        "model_path": str(model_path),
     }

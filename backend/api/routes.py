@@ -7,13 +7,14 @@ import logging
 import uuid
 
 import pandas as pd
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, Request, UploadFile
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.api.deps import get_current_user_id
 from backend.api.errors import AppError
 from backend.api.schemas import (
+    CategoryUpdate,
     ResultOut,
     TransactionOut,
     TransactionsPage,
@@ -27,17 +28,18 @@ from backend.core.database import SessionLocal, get_db
 from backend.core.models import Upload
 from backend.ml.pipeline import run_full_pipeline
 from backend.utils.csv_ingest import sanitize_filename, validate_and_clean_csv
+from backend.utils.helpers import calculate_summary_stats
 
 logger = logging.getLogger("finsight.api")
 
 router = APIRouter(prefix="/api", tags=["finance"])
 
 
-def _run_pipeline_background(user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.DataFrame):
+def _run_pipeline_background(user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.DataFrame, categorizer):
     """Run the ML pipeline in the background. Failures are logged here and summarized safely for the user."""
     db = SessionLocal()
     try:
-        results = run_full_pipeline(df)
+        results = run_full_pipeline(df, categorizer)
 
         processed_df = results.pop("processed_df", df)
         repo.store_transactions(db, user_id, upload_id, processed_df)
@@ -60,6 +62,14 @@ def _run_pipeline_background(user_id: uuid.UUID, upload_id: uuid.UUID, df: pd.Da
         db.close()
 
 
+def get_categorizer(request: Request):
+    """The categorizer loaded at startup; uploads are refused while it is unavailable."""
+    categorizer = getattr(request.app.state, "categorizer", None)
+    if categorizer is None:
+        raise AppError(503, "MODEL_UNAVAILABLE", "The categorization model is unavailable. Please try again later.")
+    return categorizer
+
+
 def _upload_not_found() -> AppError:
     # Identical for "does not exist" and "belongs to someone else", so ids cannot be probed.
     return AppError(404, "NOT_FOUND", "Upload not found.")
@@ -79,6 +89,7 @@ def create_upload(
     amount_convention: str = Query("auto", description="auto | expenses_positive | expenses_negative"),
     db: Session = Depends(get_db),
     user_id: uuid.UUID = Depends(get_current_user_id),
+    categorizer=Depends(get_categorizer),
 ):
     """Validate a CSV, record it, and start the analysis in the background."""
     filename = sanitize_filename(file.filename)
@@ -106,7 +117,7 @@ def create_upload(
         raise active_error
     repo.update_upload_status(db, user_id, upload.id, "processing")
 
-    background_tasks.add_task(_run_pipeline_background, user_id, upload.id, ingest.df)
+    background_tasks.add_task(_run_pipeline_background, user_id, upload.id, ingest.df, categorizer)
 
     return UploadAccepted(
         upload_id=upload.id,
@@ -182,30 +193,56 @@ def get_upload_transactions(
     upload_id: uuid.UUID,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
+    review_required: bool | None = Query(None, description="true: only rows needing a category; false: only categorized rows"),
     db: Session = Depends(get_db),
     user_id: uuid.UUID = Depends(get_current_user_id),
 ):
     _owned_upload(db, user_id, upload_id)
-    rows = repo.get_transactions(db, user_id, upload_id, limit=limit, offset=offset)
+    rows = repo.get_transactions(db, user_id, upload_id, limit=limit, offset=offset, review_required=review_required)
     return TransactionsPage(
         upload_id=upload_id,
         count=len(rows),
         limit=limit,
         offset=offset,
-        transactions=[
-            TransactionOut(
-                id=t.id,
-                date=t.transaction_date.isoformat() if t.transaction_date else None,
-                amount=float(t.amount),
-                category=t.confirmed_category or t.source_category or t.predicted_category or "Uncategorized",
-                description=t.description,
-                predicted_category=t.predicted_category,
-                anomaly_score=t.anomaly_score,
-                anomaly_rank=t.anomaly_rank,
-            )
-            for t in rows
-        ],
+        transactions=[_transaction_out(t) for t in rows],
     )
+
+
+def _transaction_out(t) -> TransactionOut:
+    category = repo.effective_category(t)
+    return TransactionOut(
+        id=t.id,
+        date=t.transaction_date.isoformat() if t.transaction_date else None,
+        amount=float(t.amount),
+        category=category,
+        description=t.description,
+        predicted_category=t.predicted_category,
+        prediction_confidence=t.prediction_confidence,
+        confirmed_category=t.confirmed_category,
+        review_required=category == "Uncategorized",
+        anomaly_score=t.anomaly_score,
+        anomaly_rank=t.anomaly_rank,
+    )
+
+
+@router.patch("/transactions/{transaction_id}/category", response_model=TransactionOut)
+def correct_transaction_category(
+    transaction_id: int,
+    body: CategoryUpdate,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_id),
+):
+    """Set your own category for a transaction. It overrides the model's prediction in every summary."""
+    category = " ".join(body.category.split())
+    if not category:
+        raise AppError(422, "VALIDATION_ERROR", "Category cannot be blank.")
+    txn = repo.set_confirmed_category(db, user_id, transaction_id, category)
+    if txn is None:
+        raise AppError(404, "NOT_FOUND", "Transaction not found.")
+    # Rebuild the stored summary so charts and totals use the corrected category.
+    frame = repo.transactions_dataframe(db, user_id, txn.upload_id)
+    repo.upsert_analysis_result(db, user_id, txn.upload_id, "summary", calculate_summary_stats(frame))
+    return _transaction_out(txn)
 
 
 @router.delete("/uploads/{upload_id}", status_code=204)

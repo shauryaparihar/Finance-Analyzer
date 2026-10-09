@@ -8,7 +8,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, Optional
 
 import pandas as pd
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import and_, delete, insert, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -114,6 +114,9 @@ def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df
                 "description": str(description)[:500] if description is not None else None,
                 "source_category": None if category in (None, "Uncategorized") else str(category)[:100],
                 "predicted_category": _clean(row.get("predicted_category")),
+                "prediction_confidence": float(row["prediction_confidence"])
+                if _clean(row.get("prediction_confidence")) is not None
+                else None,
                 "anomaly_score": float(score) if score is not None else None,
                 "anomaly_rank": ranks.get(idx),
             }
@@ -124,18 +127,78 @@ def store_transactions(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, df
     return len(rows)
 
 
+def _needs_review():
+    """No confirmed, source or confident predicted category: the effective category is Uncategorized."""
+    return and_(
+        Transaction.confirmed_category.is_(None),
+        Transaction.source_category.is_(None),
+        or_(Transaction.predicted_category.is_(None), Transaction.predicted_category == "Uncategorized"),
+    )
+
+
 def get_transactions(
-    db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, limit: int = 100, offset: int = 0
+    db: Session,
+    user_id: uuid.UUID,
+    upload_id: uuid.UUID,
+    limit: int = 100,
+    offset: int = 0,
+    review_required: Optional[bool] = None,
 ) -> list[Transaction]:
     stmt = (
         select(Transaction)
         .join(Upload, Upload.id == Transaction.upload_id)
         .where(Upload.id == upload_id, Upload.user_id == user_id)
-        .order_by(Transaction.transaction_date, Transaction.id)
-        .limit(limit)
-        .offset(offset)
     )
+    if review_required is True:
+        stmt = stmt.where(_needs_review())
+    elif review_required is False:
+        stmt = stmt.where(~_needs_review())
+    stmt = stmt.order_by(Transaction.transaction_date, Transaction.id).limit(limit).offset(offset)
     return list(db.scalars(stmt))
+
+
+def set_confirmed_category(
+    db: Session, user_id: uuid.UUID, transaction_id: int, category: Optional[str]
+) -> Optional[Transaction]:
+    """Record the user's own category for a transaction in an upload they own. Returns None if not found."""
+    stmt = (
+        select(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(Transaction.id == transaction_id, Upload.user_id == user_id)
+    )
+    txn = db.scalar(stmt)
+    if txn is None:
+        return None
+    txn.confirmed_category = category
+    db.commit()
+    db.refresh(txn)
+    return txn
+
+
+def effective_category(txn: Transaction) -> str:
+    """confirmed -> source -> predicted -> Uncategorized"""
+    return txn.confirmed_category or txn.source_category or txn.predicted_category or "Uncategorized"
+
+
+def transactions_dataframe(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> pd.DataFrame:
+    """All of an upload's transactions as a DataFrame with the effective category (used to rebuild summaries)."""
+    stmt = (
+        select(Transaction)
+        .join(Upload, Upload.id == Transaction.upload_id)
+        .where(Upload.id == upload_id, Upload.user_id == user_id)
+        .order_by(Transaction.id)
+    )
+    rows = [
+        {
+            "date": pd.Timestamp(t.transaction_date) if t.transaction_date else pd.NaT,
+            "amount": float(t.amount),
+            "description": t.description,
+            "effective_category": effective_category(t),
+            "is_anomaly": t.anomaly_rank is not None,
+        }
+        for t in db.scalars(stmt)
+    ]
+    return pd.DataFrame(rows, columns=["date", "amount", "description", "effective_category", "is_anomaly"])
 
 
 # --- analysis results ---
@@ -148,6 +211,8 @@ def upsert_analysis_result(
     payload: Any,
     model_version: Optional[str] = None,
 ) -> None:
+    if model_version is None and isinstance(payload, dict):
+        model_version = payload.get("model_version")
     if get_upload(db, user_id, upload_id) is None:
         raise LookupError("Upload not found")
     values = {

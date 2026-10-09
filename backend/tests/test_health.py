@@ -10,10 +10,13 @@ def test_healthz_does_not_need_the_database():
 
 
 def test_readyz_succeeds_when_database_is_reachable(test_engine, monkeypatch):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="t"), raising=False)
     monkeypatch.setattr(main, "engine", test_engine)
     response = TestClient(main.app).get("/readyz")
     assert response.status_code == 200
-    assert response.json() == {"status": "ready"}
+    assert response.json()["status"] == "ready"
 
 
 def test_readyz_fails_when_database_is_unreachable(monkeypatch):
