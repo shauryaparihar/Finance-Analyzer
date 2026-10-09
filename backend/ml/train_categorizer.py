@@ -36,7 +36,15 @@ from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.pipeline import FeatureUnion, Pipeline
 
 from backend.core.config import ARTIFACT_DIR, RANDOM_STATE
-from backend.ml.categorizer import METADATA_FILE, MODEL_FILE, UNCATEGORIZED, file_sha256
+from backend.ml.categorizer import (
+    METADATA_FILE,
+    MIN_INFORMATIVE_IDF,
+    MODEL_FILE,
+    UNCATEGORIZED,
+    file_sha256,
+    has_informative_word,
+    informative_words,
+)
 from backend.ml.prepare_training_data import DATASET_PATH, DATASET_URL
 from backend.ml.rules import classify_with_rules
 from backend.ml.text import is_blank, merchant_group, normalize_description
@@ -52,6 +60,10 @@ FEATURE_CONFIG = {
     "char_tfidf": {"analyzer": "char_wb", "ngram_range": [3, 5], "min_df": 3, "sublinear_tf": True},
     "classifier": {"name": "LogisticRegression", "C": 10.0, "max_iter": 1000},
     "amount_used_as_feature": False,
+    "unrecognized_text_guard": (
+        f"rows with no informative word (known word, IDF >= {MIN_INFORMATIVE_IDF}, not an address word) "
+        "are left Uncategorized with reason unrecognized_text, whatever the model's confidence"
+    ),
 }
 
 
@@ -106,6 +118,47 @@ def choose_threshold(confidence: np.ndarray, correct: np.ndarray) -> float:
         if accepted.mean() >= 0.5 and accuracy > fallback_accuracy:
             fallback, fallback_accuracy = threshold, accuracy
     return fallback
+
+
+def nonsense_descriptions(n_each: int = 500, seed: int = RANDOM_STATE) -> list[str]:
+    """Meaningless descriptions in four shapes: plain, with an address tail, with payment words, with city names."""
+    rng = np.random.default_rng(seed)
+    letters = np.array(list("ABCDEFGHIJKLMNOPQRSTUVWXYZ"))
+    word = lambda: "".join(rng.choice(letters, size=int(rng.integers(3, 7))))  # noqa: E731
+    number = lambda lo, hi: int(rng.integers(lo, hi))  # noqa: E731
+    texts = []
+    for _ in range(n_each):
+        texts.append(f"{word()} {number(100, 9999)} {word()}")
+        texts.append(f"{word()} {number(100, 9999)} {word()} {rng.choice(['CA', 'TX', 'NY', 'FL'])} USA")
+        texts.append(f"POS DEBIT {word()} {number(100, 9999)} PAYMENT")
+        texts.append(f"PAYMENT {word()} #{number(10, 999)} {rng.choice(['SEATTLE', 'AUSTIN', 'DALLAS'])} WA USA")
+    return texts
+
+
+def robustness_check(pipeline: Pipeline, threshold: float, real_texts: list[str]) -> dict:
+    """How often meaningless text would be auto-categorized, with and without the unrecognized-text guard."""
+    words = informative_words(pipeline)
+
+    def auto_rate(texts: list[str]) -> tuple[float, float]:
+        normalized = [normalize_description(t, "debit") for t in texts]
+        confident = pipeline.predict_proba(normalized).max(axis=1) >= threshold
+        guarded = confident & np.array([has_informative_word(t, words) for t in normalized])
+        return float(confident.mean()), float(guarded.mean())
+
+    nonsense = nonsense_descriptions()
+    without_guard, with_guard = auto_rate(nonsense)
+    real_without, real_with = auto_rate(real_texts)
+    return {
+        "nonsense_samples": len(nonsense),
+        "nonsense_auto_categorized_without_guard": without_guard,
+        "nonsense_auto_categorized_with_guard": with_guard,
+        "real_test_rows_blocked_by_guard": real_without - real_with,
+        "known_gap": (
+            "the guard does not catch nonsense that contains rare real words (e.g. city names); in this probe the "
+            "confidence threshold caught those instead, but that is not guaranteed. Plausible-looking made-up "
+            "merchant names still receive a guess."
+        ),
+    }
 
 
 def _report(y_true, y_pred, labels) -> dict:
@@ -193,6 +246,7 @@ def train_and_evaluate(raw: pd.DataFrame, seed: int = RANDOM_STATE) -> tuple[Pip
             else None,
             "note": "rows the rules cannot categorize count as wrong in macro_f1/accuracy_secondary",
         },
+        "robustness": robustness_check(pipeline, threshold, list(test["text"].str.replace(r"^dir_\w+ ", "", regex=True))),
         "dataset_rows_after_dedup": len(df),
     }
     return pipeline, results
@@ -225,6 +279,7 @@ def build_metadata(pipeline: Pipeline, results: dict, dataset_path: Path, rows_r
             "cross_validation": results["cross_validation"],
             "model_test": results["model_test"],
             "model_test_at_threshold": results["model_test_at_threshold"],
+            "robustness": results["robustness"],
             "rules_baseline_test": results["rules_baseline_test"],
         },
         "library_versions": {
@@ -264,6 +319,8 @@ def main() -> None:
     print(f"MODEL  test macro F1 {m['macro_f1']:.3f}  weighted F1 {m['weighted_f1']:.3f}  (accuracy {m['accuracy_secondary']:.3f})")
     print(f"       auto-categorized {t['coverage_auto_categorized']:.1%}  review {t['sent_to_review']:.1%}  accuracy of auto {t['accuracy_of_auto_categorized']:.3f}")
     print(f"RULES  test macro F1 {r['macro_f1']:.3f}  weighted F1 {r['weighted_f1']:.3f}  coverage {r['coverage']:.1%}  accuracy when covered {r['accuracy_when_covered']:.3f}")
+    rb = results["robustness"]
+    print(f"NONSENSE auto-categorized: without guard {rb['nonsense_auto_categorized_without_guard']:.1%}, with guard {rb['nonsense_auto_categorized_with_guard']:.1%}; real test rows blocked {rb['real_test_rows_blocked_by_guard']:.2%}")
     print(f"artifact             {model_path}  ({model_path.stat().st_size / 1e6:.1f} MB)")
 
 

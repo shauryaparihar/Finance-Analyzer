@@ -1,6 +1,6 @@
 {
-  "model_version": "tfidf-lr-03c7d94e",
-  "created_at": "2026-10-09T06:44:37.153712+00:00",
+  "model_version": "tfidf-lr-5bdd9335",
+  "created_at": "2026-10-09T07:02:21.744012+00:00",
   "training_data": {
     "source": "DoDataThings/us-bank-transaction-categories-v2 (Hugging Face)",
     "url": "https://huggingface.co/datasets/DoDataThings/us-bank-transaction-categories-v2/resolve/3e8d052cb7b362fb1a04b6064d2331982553ea56/transactions-synthetic.csv",
@@ -53,7 +53,8 @@
       "C": 10.0,
       "max_iter": 1000
     },
-    "amount_used_as_feature": false
+    "amount_used_as_feature": false,
+    "unrecognized_text_guard": "rows with no informative word (known word, IDF >= 4.0, not an address word) are left Uncategorized with reason unrecognized_text, whatever the model's confidence"
   },
   "random_state": 42,
   "split": {
@@ -546,6 +547,13 @@
       "sent_to_review": 0.01999407582938384,
       "accuracy_of_auto_categorized": 0.990025691400937
     },
+    "robustness": {
+      "nonsense_samples": 2000,
+      "nonsense_auto_categorized_without_guard": 0.4735,
+      "nonsense_auto_categorized_with_guard": 0.001,
+      "real_test_rows_blocked_by_guard": 0.0008886255924169806,
+      "known_gap": "the guard does not catch nonsense that contains rare real words (e.g. city names); in this probe the confidence threshold caught those instead, but that is not guaranteed. Plausible-looking made-up merchant names still receive a guess."
+    },
     "rules_baseline_test": {
       "accuracy_secondary": 0.4574940758293839,
       "macro_f1": 0.5493085362243848,
@@ -1012,5 +1020,5 @@
     "joblib": "1.6.0"
   },
   "artifact_file": "model.joblib",
-  "artifact_sha256": "a4b0f89a14a21a1ff8a82da191a4db3e8be79fe165f646bd2f6d3425148a57d4"
+  "artifact_sha256": "92d2aac52f28e1af0faca5a796ee26e5d9fc8a94cb4ac1c83d23a63b8fb7decd"
 }

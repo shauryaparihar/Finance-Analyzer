@@ -24,6 +24,17 @@ MODEL_FILE = "model.joblib"
 METADATA_FILE = "metadata.json"
 
 
+# A description is only trusted if it contains at least one "informative" word: known to the model, rare enough
+# to identify something (appears in fewer than about 5% of training descriptions, i.e. IDF >= 4.0), and not an
+# address word. Without this, meaningless text such as "ZXQJ 8841 KLM" got confident predictions, because
+# logistic regression stays confident on text it has never seen.
+MIN_INFORMATIVE_IDF = 4.0
+ADDRESS_WORDS = frozenset(
+    "al ak az ar ca co ct de fl ga hi id il in ia ks ky la me md ma mi mn ms mo mt ne nv nh nj nm ny nc nd oh ok "
+    "or pa ri sc sd tn tx ut vt va wa wv wi wy dc us usa".split()
+)
+
+
 class ModelLoadError(Exception):
     """The categorizer artifact is missing, altered, or built for a different library version."""
 
@@ -36,10 +47,27 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def informative_words(pipeline: Any) -> frozenset:
+    """Single words from the model's vocabulary that can identify a merchant or category."""
+    vectorizer = pipeline.named_steps["features"].transformer_list[0][1]
+    return frozenset(
+        word
+        for word, index in vectorizer.vocabulary_.items()
+        if " " not in word and vectorizer.idf_[index] >= MIN_INFORMATIVE_IDF and word not in ADDRESS_WORDS
+    )
+
+
+def has_informative_word(normalized_text: str, words: frozenset) -> bool:
+    return any(token in words for token in normalized_text.split() if not token.startswith("dir_"))
+
+
 @dataclass
 class Categorizer:
     pipeline: Any
     metadata: dict
+
+    def __post_init__(self):
+        self._informative = informative_words(self.pipeline)
 
     @property
     def version(self) -> str:
@@ -70,12 +98,14 @@ class Categorizer:
             best = probabilities.argmax(axis=1)
             confidence = probabilities.max(axis=1)
             labels = self.pipeline.classes_[best]
-            confident = confidence >= self.threshold
+            recognized = np.array([has_informative_word(t, self._informative) for t in texts])
+            confident = (confidence >= self.threshold) & recognized
 
             positions = np.flatnonzero(has_text)
-            result.iloc[positions, result.columns.get_loc("confidence")] = confidence
+            reason = np.where(~recognized, "unrecognized_text", np.where(confident, "model", "low_confidence"))
+            result.iloc[positions, result.columns.get_loc("confidence")] = np.where(recognized, confidence, 0.0)
             result.iloc[positions, result.columns.get_loc("predicted_category")] = np.where(confident, labels, UNCATEGORIZED)
-            result.iloc[positions, result.columns.get_loc("reason")] = np.where(confident, "model", "low_confidence")
+            result.iloc[positions, result.columns.get_loc("reason")] = reason
         return result
 
 

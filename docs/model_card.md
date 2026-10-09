@@ -1,6 +1,6 @@
 # Model card: transaction categorizer
 
-**Model version:** `tfidf-lr-03c7d94e` · **Task:** assign one of 17 spending categories to a bank-transaction description · **Type:** TF-IDF (word + character n-grams) → multinomial Logistic Regression, with a confidence threshold that sends uncertain rows to the user.
+**Model version:** `tfidf-lr-5bdd9335` · **Task:** assign one of 17 spending categories to a bank-transaction description · **Type:** TF-IDF (word + character n-grams) → multinomial Logistic Regression, with a confidence threshold that sends uncertain rows to the user.
 
 > **Everything below was measured on SYNTHETIC data.** The numbers show how well the model reproduces the labels of a data generator. They are **not** an estimate of accuracy on real bank statements, which are messier and which this model has never seen.
 
@@ -63,10 +63,21 @@ Weakest classes on the test set (per-class precision / recall / F1):
 
 The main confusion is `Transfer` rows predicted as `Subscription` (110) or `Entertainment` (37). The full per-class table and confusion matrix are in `backend/artifacts/categorizer/metadata.json`.
 
+## Robustness: meaningless text
+
+A probe of 2,000 generated nonsense descriptions (random letters and numbers, with or without address tails, payment words or city names, fixed seed):
+
+| | Auto-categorized (confident prediction) |
+|---|---|
+| Confidence threshold only | 47.3% |
+| **With the unrecognized-text guard** | **0.1%** |
+
+**The guard:** a description is trusted only if it contains at least one *informative* word, meaning a word the model knows that appears in fewer than about 5% of training descriptions (IDF ≥ 4.0) and is not an address word (US state codes, `us`, `usa`). Otherwise the row is left `Uncategorized` with reason `unrecognized_text` and confidence 0, whatever the model's own confidence. Cost: it blocks 0.09% of real held-out test rows (6 of 6,752), which would otherwise have been categorized correctly.
+
 ## Limitations
 
 - **Synthetic, US-centric data.** Formats from other countries (for example UPI references) and merchants outside the training list are not represented. Expect lower accuracy on real statements.
-- **Over-confidence on nonsense.** A meaningless description such as `ZXQJ 8841 KLM` was labelled `Transportation` with 0.93 confidence in a manual check. The threshold cannot catch text the model has never seen but that resembles something it has.
+- **Over-confidence on text it has never seen.** Logistic regression stays confident on meaningless input: `ZXQJ 8841 KLM` was first labelled `Transportation` at 0.93 confidence, and the confidence threshold alone could not stop it (see "Robustness"). A guard now leaves such rows `Uncategorized`, but plausible-looking made-up merchant names (for example `ACME CORP 2291`) still receive a guess, and nonsense containing rare real words such as city names is not caught by the guard (the confidence threshold caught those in our probe, which is not a guarantee).
 - **Ambiguity is real.** Zelle, transfers and generic payment descriptions do not identify a category by themselves.
 - **No amount or date features.** A $5 and a $500 charge at the same merchant get the same prediction.
 - **Merchant grouping is approximate**, so a small amount of leakage between train and test is possible.
