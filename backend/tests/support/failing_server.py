@@ -18,4 +18,7 @@ def crash(df):
 if __name__ == "__main__":
     # Only when run as a server process: importing this module (for SENSITIVE_MESSAGE) must change nothing.
     pipeline.run_forecast = crash
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=int(os.environ["TEST_PORT"]), log_level="info")
+    uvicorn.run(
+        "backend.main:app", host="127.0.0.1", port=int(os.environ["TEST_PORT"]),
+        log_config="backend/logging_config.json", access_log=False,
+    )

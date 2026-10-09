@@ -100,7 +100,8 @@ def configure_logging() -> None:
     """Idempotently send JSON logs to stdout. Safe to call more than once and from tests."""
     root = logging.getLogger()
     root.setLevel(settings.log_level.upper())
-    if not any(getattr(h, _HANDLER_TAG, False) for h in root.handlers):
+    # A JSON handler may already be installed by the server's own log config (backend/logging_config.json).
+    if not any(getattr(h, _HANDLER_TAG, False) or isinstance(h.formatter, JsonFormatter) for h in root.handlers):
         handler = logging.StreamHandler(sys.stdout)
         handler.setFormatter(JsonFormatter())
         setattr(handler, _HANDLER_TAG, True)

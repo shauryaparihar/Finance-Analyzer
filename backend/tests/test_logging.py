@@ -78,11 +78,29 @@ def test_the_exception_message_appears_only_when_explicitly_enabled_for_local_de
     assert config.Settings().log_exception_messages is False  # the default
 
 
-def test_configure_logging_is_idempotent():
+def _json_handlers():
+    return [h for h in logging.getLogger().handlers if isinstance(h.formatter, JsonFormatter)]
+
+
+def test_configure_logging_never_leaves_zero_or_duplicate_json_handlers():
+    # Another component (the migration tool, or the server's own log config) may already have installed one.
     configure_logging()
     configure_logging()
-    tagged = [h for h in logging.getLogger().handlers if getattr(h, "_finsight_json_handler", False)]
-    assert len(tagged) == 1
+    assert len(_json_handlers()) == 1
+
+
+def test_configure_logging_adds_a_handler_when_none_exists_and_is_idempotent():
+    root = logging.getLogger()
+    saved = list(root.handlers)
+    try:
+        for handler in _json_handlers():
+            root.removeHandler(handler)
+        assert _json_handlers() == []
+        configure_logging()
+        configure_logging()
+        assert len(_json_handlers()) == 1
+    finally:
+        root.handlers = saved
 
 
 def test_log_event_carries_fields_through_the_standard_logger(caplog):

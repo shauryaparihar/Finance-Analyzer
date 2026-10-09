@@ -64,6 +64,19 @@ def production_server(test_engine):
         process.terminate()
 
 
+def _json_lines(output: str) -> list[dict]:
+    lines = [line for line in output.splitlines() if line.strip()]
+    not_json = []
+    entries = []
+    for line in lines:
+        try:
+            entries.append(json.loads(line))
+        except ValueError:
+            not_json.append(line)
+    assert not not_json, f"{len(not_json)} log line(s) are not JSON, for example: {not_json[0][:120]}"
+    return entries
+
+
 def _read_logs(process) -> str:
     try:
         return process.communicate(timeout=20)[0]
@@ -93,12 +106,7 @@ def test_a_production_mode_server_logs_nothing_sensitive_even_when_a_step_crashe
     process.terminate()
     output = _read_logs(process)
 
-    entries = []
-    for line in output.splitlines():
-        try:
-            entries.append(json.loads(line))
-        except ValueError:
-            pass  # a plain-text startup banner line (tightened once startup logging is JSON too)
+    entries = _json_lines(output)  # every single line, including server startup and shutdown, must be JSON
     assert entries, "the server wrote no logs"
     assert any(e["event"] == "app_started" and e.get("environment") == "production" for e in entries)
     crash = [e for e in entries if e.get("exc_type") == "RuntimeError"]
@@ -109,3 +117,43 @@ def test_a_production_mode_server_logs_nothing_sensitive_even_when_a_step_crashe
         token, "prod-user@example.com", "PRIVATE CATEGORY", "p" * 48,
     ):
         assert forbidden not in output, forbidden
+
+
+def test_the_exact_server_start_command_writes_only_json_from_startup_to_shutdown(test_engine):
+    port = _free_port()
+    env = {**os.environ, "PYTHONPATH": str(ROOT), "DATABASE_URL": TEST_DATABASE_URL, "ENVIRONMENT": "development"}
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", str(port),
+         "--log-config", "backend/logging_config.json", "--no-access-log"],
+        cwd=ROOT, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        for _ in range(80):
+            try:
+                if httpx.get(f"http://127.0.0.1:{port}/healthz", timeout=1).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                time.sleep(0.25)
+        process.terminate()
+        output = _read_logs(process)
+    finally:
+        if process.poll() is None:
+            process.kill()
+    entries = _json_lines(output)
+    messages = [e["event"] for e in entries]
+    assert any("Started server process" in m for m in messages) and any("Waiting for application startup" in m for m in messages)
+    assert any("Shutting down" in m or "Finished server process" in m for m in messages)
+    assert "app_started" in messages and "app_stopped" in messages
+    assert len([m for m in messages if m == "app_started"]) == 1  # no duplicate handlers
+
+
+def test_migration_output_is_json_too(test_engine):
+    env = {**os.environ, "PYTHONPATH": str(ROOT), "DATABASE_URL": TEST_DATABASE_URL}
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "-c", "alembic.ini", "upgrade", "head"],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=60,
+    )
+    assert result.returncode == 0, result.stderr[-500:]
+    entries = _json_lines(result.stdout + result.stderr)
+    assert entries and any("alembic" in e["logger"] for e in entries)
+    assert any("Context impl" in e["event"] for e in entries)

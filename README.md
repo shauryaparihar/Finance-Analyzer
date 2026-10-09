@@ -145,7 +145,7 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 2. Go to [render.com](https://render.com) → **New Web Service** → Connect your repo.
 3. Render will auto-detect `render.yaml`. If not, use these settings:
    - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT`
+   - **Start Command**: `uvicorn backend.main:app --host 0.0.0.0 --port $PORT --log-config backend/logging_config.json --no-access-log`
 4. Set the following environment variables in the Render dashboard:
    - `ENVIRONMENT` = `production`
    - `FRONTEND_URL` = your Vercel URL (e.g. `https://finance-analyzer.vercel.app`)
@@ -173,7 +173,7 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 
 ## Operations
 
-- Logs are one JSON object per line on stdout (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.
+- Logs are one JSON object per line on stdout, including the server and migration startup lines (start the server with `--log-config backend/logging_config.json --no-access-log`, as the Dockerfile, Compose file, Procfile and `render.yaml` do) (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.
 - `GET /healthz` is liveness; `GET /readyz` checks the database, the categorizer model and the job runner.
 - Analyses run in a bounded in-process worker pool (`ANALYSIS_WORKERS`, default 2); a restart interrupts a running analysis and the next start marks it failed. See `.env.example` for the settings.
 - `python -m backend.services.ops_report` prints aggregate job, failure, timing, model-version and forecast-method counts from the database.
