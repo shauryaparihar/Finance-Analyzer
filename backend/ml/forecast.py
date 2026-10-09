@@ -18,7 +18,11 @@ from sklearn.ensemble import RandomForestRegressor
 from backend.core.config import PREDICTION_DAYS, RANDOM_STATE
 
 MIN_HISTORY_DAYS = 90
-BACKTEST_HORIZON_DAYS = 14  # how far ahead each backtest fold forecasts
+# Each backtest fold forecasts this many days ahead. We want to score the same horizon we serve (31 days, enough to
+# cover the rest of any month), but a short history cannot support that many folds, so use the longest option that
+# still gives MIN_FOLDS folds.
+BACKTEST_HORIZON_OPTIONS = (31, 21, 14)
+MIN_FOLDS = 3
 BACKTEST_STEP_DAYS = 7  # how far the forecast origin moves between folds
 MIN_TRAIN_DAYS = 56  # first backtest fold trains on at least 8 weeks
 WARMUP = 28  # the slowest feature (28-day average) needs 28 days of past
@@ -100,23 +104,41 @@ def _errors(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
     return {"mae": float(np.abs(diff).mean()), "rmse": float(np.sqrt((diff**2).mean()))}
 
 
+def pick_horizon(n: int) -> int:
+    """The longest backtest horizon that still gives at least MIN_FOLDS rolling-origin folds."""
+    for horizon in BACKTEST_HORIZON_OPTIONS:
+        if len(list(rolling_origin_splits(n, MIN_TRAIN_DAYS, horizon, BACKTEST_STEP_DAYS))) >= MIN_FOLDS:
+            return horizon
+    return BACKTEST_HORIZON_OPTIONS[-1]
+
+
+def _window_total_error_pct(actual_windows: list[np.ndarray], predicted_windows: list[np.ndarray]) -> float:
+    """Average error of the total spent over a forecast window, as a percentage of the actual total."""
+    actual_totals = np.array([w.sum() for w in actual_windows])
+    predicted_totals = np.array([w.sum() for w in predicted_windows])
+    return float(np.abs(actual_totals - predicted_totals).mean() / actual_totals.mean() * 100)
+
+
 def backtest(values: np.ndarray, dates: pd.DatetimeIndex) -> dict[str, Any]:
-    """Score baseline and model over rolling-origin folds. Errors are pooled over every forecast day."""
+    """Score baseline and model over rolling-origin folds. Daily errors are pooled over every forecast day."""
+    horizon = pick_horizon(len(values))
+    folds = list(rolling_origin_splits(len(values), MIN_TRAIN_DAYS, horizon, BACKTEST_STEP_DAYS))
     actual, base_pred, model_pred = [], [], []
-    folds = list(rolling_origin_splits(len(values), MIN_TRAIN_DAYS, BACKTEST_HORIZON_DAYS, BACKTEST_STEP_DAYS))
     for train_end, test_end in folds:
         train_values, train_dates = values[:train_end], dates[:train_end]
-        horizon = test_end - train_end
         actual.append(values[train_end:test_end])
         base_pred.append(forecast_baseline(train_values, horizon))
         model_pred.append(forecast_model(train_values, train_dates, horizon))
-    actual, base_pred, model_pred = (np.concatenate(a) for a in (actual, base_pred, model_pred))
+    baseline_scores = _errors(np.concatenate(actual), np.concatenate(base_pred))
+    model_scores = _errors(np.concatenate(actual), np.concatenate(model_pred))
+    baseline_scores["window_total_error_pct"] = _window_total_error_pct(actual, base_pred)
+    model_scores["window_total_error_pct"] = _window_total_error_pct(actual, model_pred)
     return {
-        "horizon_days": BACKTEST_HORIZON_DAYS,
+        "horizon_days": horizon,
         "folds": len(folds),
-        "forecast_days_scored": int(len(actual)),
-        "baseline": _errors(actual, base_pred),
-        "model": _errors(actual, model_pred),
+        "forecast_days_scored": int(sum(len(a) for a in actual)),
+        "baseline": baseline_scores,
+        "model": model_scores,
     }
 
 

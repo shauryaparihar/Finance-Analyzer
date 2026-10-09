@@ -118,3 +118,34 @@ def test_forecasting_is_deterministic():
 def test_baseline_repeats_the_last_week():
     values = np.arange(1.0, 15.0)
     np.testing.assert_array_equal(fc.forecast_baseline(values, 9), np.array([8, 9, 10, 11, 12, 13, 14, 8, 9], dtype=float))
+
+
+@pytest.mark.parametrize(
+    "history_days,expected_horizon",
+    [(90, 14), (99, 14), (100, 21), (112, 21), (120, 31), (361, 31)],
+)
+def test_backtest_uses_the_longest_horizon_that_still_gives_enough_folds(history_days, expected_horizon):
+    assert fc.pick_horizon(history_days) == expected_horizon
+    folds = list(fc.rolling_origin_splits(history_days, fc.MIN_TRAIN_DAYS, expected_horizon, fc.BACKTEST_STEP_DAYS))
+    assert len(folds) >= fc.MIN_FOLDS
+
+
+def test_a_longer_history_is_scored_at_the_horizon_we_serve():
+    short = fc.run_forecast(_transactions(_noisy_flat(90)))["backtest"]
+    long = fc.run_forecast(_transactions(_noisy_flat(150)))["backtest"]
+    assert short["horizon_days"] == 14 and short["folds"] >= fc.MIN_FOLDS
+    assert long["horizon_days"] == PREDICTION_DAYS == 31
+    assert long["forecast_days_scored"] == long["folds"] * 31
+
+
+def test_backtest_reports_the_error_on_window_totals_for_both_methods():
+    backtest = fc.run_forecast(_transactions(_noisy_flat(150)))["backtest"]
+    for key in ("baseline", "model"):
+        assert backtest[key]["window_total_error_pct"] >= 0 and backtest[key]["mae"] > 0
+
+
+def test_window_total_error_is_zero_for_a_perfect_forecast_and_correct_for_a_known_miss():
+    windows = [np.array([10.0, 10.0]), np.array([20.0, 20.0])]
+    assert fc._window_total_error_pct(windows, windows) == 0.0
+    off_by_ten_percent = [w * 1.1 for w in windows]
+    assert fc._window_total_error_pct(windows, off_by_ten_percent) == pytest.approx(10.0)
