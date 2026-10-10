@@ -47,3 +47,22 @@ export function confidenceCell(row: Reviewable): string {
 export function categoryOptions(modelCategories: string[], seen: string[]): string[] {
   return Array.from(new Set([...modelCategories, ...seen])).filter((c) => c !== UNCATEGORIZED).sort((a, b) => a.localeCompare(b));
 }
+
+type ReviewStatus = "unreviewed" | "confirmed" | "dismissed";
+type ReviewItem = { transaction_id: number; review_status: ReviewStatus };
+
+/** Status to show: a decision still being saved wins over what the server last sent. */
+export function shownStatus(item: ReviewItem, saving: Record<number, ReviewStatus>): ReviewStatus {
+  return saving[item.transaction_id] ?? item.review_status;
+}
+
+export function reviewedCount(items: ReviewItem[], saving: Record<number, ReviewStatus>): number {
+  return items.filter((item) => shownStatus(item, saving) !== "unreviewed").length;
+}
+
+/** The decisions still being saved, minus one that failed (so the screen goes back to what the server has). */
+export function withoutDecision(saving: Record<number, ReviewStatus>, transactionId: number): Record<number, ReviewStatus> {
+  const rest = { ...saving };
+  delete rest[transactionId];
+  return rest;
+}

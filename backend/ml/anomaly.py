@@ -11,6 +11,8 @@ How a score is built (all explainable):
   * Category-relative deviation: the amount's distance from the category's typical amount, measured with the
     median and MAD (robust to the very outliers we are looking for) on a log scale (spending is right-skewed).
   * Isolation Forest: an unsupervised model that isolates points that are easy to separate from the rest.
+A charge that repeats (same description at least MIN_RECURRING times, amount within RECURRING_TOLERANCE of its usual
+amount) is not queued: monthly rent or a subscription is expected, whatever the category's other amounts look like.
 Which of the two (or a blend) ships was decided by backend/ml/anomaly_eval.py on a labelled synthetic fixture:
 the blend was not meaningfully better than the deviation score alone, so the simpler, fully explainable
 deviation score is used. Isolation Forest stays here only for that comparison.
@@ -27,6 +29,8 @@ MIN_EXPENSES = 20
 MIN_CATEGORY_ROWS = 8  # smaller categories are compared with all spending instead
 MIN_SCALE = 0.25  # floor for the spread on the log scale, so near-constant categories do not explode
 MAX_Z = 6.0
+MIN_RECURRING = 3  # the same description this many times counts as a repeating charge (rent, a subscription)
+RECURRING_TOLERANCE = 0.15  # ...and an amount within 15% of that charge's usual amount is just the charge again
 
 METHODS = ("deviation", "isolation_forest", "blend")
 METHOD = "deviation"  # chosen from the evaluation in anomaly_eval.py (see docs/model_card.md)
@@ -61,6 +65,23 @@ def deviation_scores(expenses: pd.DataFrame) -> pd.DataFrame:
         typical.loc[idx] = np.exp(median)
         scope.loc[idx] = label
     return pd.DataFrame({"z": z, "typical": typical, "scope": scope})
+
+
+def recurring_charge(expenses: pd.DataFrame) -> pd.Series:
+    """True for an expense that repeats a charge seen before: same description (at least MIN_RECURRING times)
+    and an amount within RECURRING_TOLERANCE of that description's median. Such a charge is expected, not unusual.
+    A change in price (a rent rise, a different amount for the same merchant) is not exempt."""
+    exempt = pd.Series(False, index=expenses.index)
+    if "description" not in expenses:
+        return exempt
+    key = expenses["description"].fillna("").astype(str).str.lower().str.split().str.join(" ")
+    amount = expenses["amount"].astype(float)
+    for text, idx in amount.groupby(key).groups.items():
+        if not text or len(idx) < MIN_RECURRING:
+            continue
+        usual = float(amount.loc[idx].median())
+        exempt.loc[idx] = ((amount.loc[idx] - usual).abs() <= RECURRING_TOLERANCE * usual).to_numpy()
+    return exempt
 
 
 def isolation_scores(expenses: pd.DataFrame, z: pd.Series) -> pd.Series:
@@ -113,6 +134,7 @@ def rank_unusual(
         }
     )
     eligible = scored if min_z is None else scored[scored["z"] >= min_z]
+    eligible = eligible[~recurring_charge(expenses).reindex(eligible.index, fill_value=False)]
     # The score is capped (MAX_Z), so ties among extreme rows are broken by the uncapped deviation, then the amount.
     order = eligible.sort_values(["anomaly_score", "z", "amount"], ascending=[False, False, False]).head(capacity)
     scored["anomaly_rank"] = pd.Series(range(1, len(order) + 1), index=order.index)

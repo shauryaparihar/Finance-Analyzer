@@ -171,3 +171,43 @@ def test_the_floor_cuts_false_alarms_on_clean_data_without_losing_the_spikes_it_
 def test_precision_is_computed_over_the_items_actually_shown():
     assert precision_recall_at_k([True, True, False], total_true=4, k=10) == (pytest.approx(2 / 3), pytest.approx(2 / 4))
     assert precision_recall_at_k([], total_true=3, k=10) == (0.0, 0.0)
+
+
+def _with_descriptions(rows):
+    frame = _expenses([(d, a, c) for d, a, c, _ in rows])
+    frame["description"] = [text for *_, text in rows]
+    return frame
+
+
+def _many_small(n=12, category="Shopping"):
+    rng = np.random.default_rng(1)
+    return [("2025-01-%02d" % (1 + i), float(np.round(50 * np.exp(rng.normal(0, 0.1)), 2)), category, f"SHOP {i}") for i in range(n)]
+
+
+def test_a_repeating_charge_is_not_queued_even_in_a_small_category():
+    # Four identical rent payments are huge next to the other spending, but they are the same charge each month.
+    rent = [("2025-0%d-01" % m, 1500.0, "Rent", "AIMCO RENT PMT PPD ID: 4273027363") for m in range(1, 5)]
+    ranked = an.rank_unusual(_with_descriptions(_many_small() + rent))
+    assert ranked.loc[ranked.index[-4:], "anomaly_rank"].isna().all()
+
+
+def test_a_price_change_on_a_repeating_charge_is_still_flagged():
+    usual = [("2025-0%d-01" % m, 15.0, "Subscription", "STREAMING CO 77") for m in range(1, 5)]
+    jump = [("2025-05-01", 450.0, "Subscription", "STREAMING CO 77")]
+    ranked = an.rank_unusual(_with_descriptions(_many_small() + usual + jump))
+    assert ranked.iloc[-1]["anomaly_rank"] == 1
+    assert ranked.loc[ranked.index[-5:-1], "anomaly_rank"].isna().all()
+
+
+def test_a_charge_seen_fewer_than_three_times_is_not_treated_as_repeating():
+    twice = [("2025-03-01", 1500.0, "Rent", "ONE OFF LANDLORD"), ("2025-04-01", 1500.0, "Rent", "ONE OFF LANDLORD")]
+    ranked = an.rank_unusual(_with_descriptions(_many_small() + twice))
+    assert ranked.loc[ranked.index[-2:], "anomaly_rank"].notna().all()
+
+
+def test_description_spacing_and_case_do_not_hide_a_repeating_charge_and_missing_descriptions_are_safe():
+    rent = [("2025-01-01", 1500.0, "Rent", "Aimco  Rent"), ("2025-02-01", 1500.0, "Rent", "AIMCO RENT"), ("2025-03-01", 1500.0, "Rent", " aimco rent ")]
+    assert an.recurring_charge(_with_descriptions(rent)).all()
+    blanks = [("2025-01-01", 800.0, "Rent", None)] * 3 + [("2025-02-01", 800.0, "Rent", "")] * 3
+    assert not an.recurring_charge(_with_descriptions(blanks)).any()  # no description: nothing to match on
+    assert not an.recurring_charge(_expenses([("2025-01-01", 5.0, "Rent")] * 4)).any()  # no description column at all
