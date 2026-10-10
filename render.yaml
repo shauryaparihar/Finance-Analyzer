@@ -1,14 +1,19 @@
+# Render Blueprint for the API. The database is external (see docs/deployment.md), so DATABASE_URL is entered by hand.
 services:
   - type: web
-    name: finance-analyzer-api
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT --log-config backend/logging_config.json --no-access-log
+    name: finance-analyzer-pdup
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /healthz
+    # The free plan has no pre-deploy hook, so migrations run when the container starts (safe to repeat).
+    dockerCommand: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --log-config backend/logging_config.json --no-access-log"
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: JWT_SECRET
+        generateValue: true
       - key: FRONTEND_URL
-        sync: false  # Set this manually to your Vercel URL
+        value: https://finance-analyzer-nu.vercel.app
       - key: DATABASE_URL
-        sync: false  # Set this if using PostgreSQL
-    plan: free
+        sync: false  # paste the PostgreSQL connection string in the Render dashboard; never commit it
