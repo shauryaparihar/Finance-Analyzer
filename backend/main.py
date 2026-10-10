@@ -14,6 +14,7 @@ from sqlalchemy import text
 from backend.api.admin import router as admin_router
 from backend.api.auth import router as auth_router
 from backend.api.errors import AppError, register_error_handling
+from backend.api.google_auth import router as google_router
 from backend.api.routes import router
 from backend.core.config import cors_origins, settings, validate_runtime_settings
 from backend.core.database import SessionLocal, engine
@@ -81,6 +82,7 @@ register_error_handling(app)
 
 app.include_router(auth_router)
 app.include_router(admin_router)
+app.include_router(google_router)
 app.include_router(router)
 
 

@@ -86,6 +86,14 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     )
 
 
+@router.get("/providers")
+def providers():
+    """Which extra ways to sign in this deployment offers (the website shows only those)."""
+    from backend.core import google_oauth
+
+    return {"google": google_oauth.enabled(), "demo": settings.demo_enabled}
+
+
 @router.post("/demo", response_model=TokenOut)
 def demo_login(request: Request, response: Response, db: Session = Depends(get_db)):
     """One-click read-only guest session, when the deployment enables it. There is no password to guess:

@@ -683,3 +683,31 @@ def set_user_active(db: Session, user_id: uuid.UUID, active: bool) -> Optional[U
     db.commit()
     db.refresh(user)
     return user
+
+
+def resolve_google_user(db: Session, google_sub: str, email: str) -> tuple[User, bool]:
+    """The account for a verified Google identity. Returns (user, linked_existing_account).
+
+    * known Google id            -> that account
+    * unknown id, email in use   -> link Google to that account. The account's password is switched off and its
+                                    sessions are ended by the caller: otherwise someone who registered the victim's
+                                    email first (the app never verified it) could keep using their own password.
+    * otherwise                  -> a new ordinary account with no password
+    """
+    user = db.scalar(select(User).where(User.google_sub == google_sub))
+    if user is not None:
+        return user, False
+    existing = get_user_by_email(db, email)
+    if existing is not None:
+        if existing.role == "demo":
+            raise ValueError("the demo account cannot be linked")
+        existing.google_sub = google_sub
+        existing.password_hash = UNUSABLE_PASSWORD_HASH
+        db.commit()
+        db.refresh(existing)
+        return existing, True
+    user = User(email=email.strip().lower(), password_hash=UNUSABLE_PASSWORD_HASH, google_sub=google_sub)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user, False

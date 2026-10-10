@@ -130,6 +130,14 @@ def revoke(db: Session, raw: Optional[str]) -> bool:
     return True
 
 
+def revoke_all_for_user(db: Session, user_id: uuid.UUID, reason: str = "account_change") -> None:
+    """End every login session of one user (used when how they sign in changes)."""
+    db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=_db_now(db), revoke_reason=reason)
+    )
+    db.commit()
+
+
 def purge_expired(db: Session) -> int:
     """Delete sessions that ended more than a week ago, so the table does not grow forever."""
     cutoff = _db_now(db) - timedelta(days=7)

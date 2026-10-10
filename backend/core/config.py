@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     refresh_grace_seconds: int = 10  # a just-rotated token presented again within this window is a race, not theft
     cookie_secure: bool | None = None  # None: Secure cookies in production, plain in local development
 
+    # "Continue with Google": both values come from a Google Cloud OAuth client (see docs/deployment.md). Off when empty.
+    google_client_id: str = ""
+    google_client_secret: str = ""
+
     # One-click read-only guest login (POST /api/auth/demo). Off unless a deployment turns it on.
     demo_enabled: bool = False
 
