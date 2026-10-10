@@ -6,8 +6,7 @@ services:
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /healthz
-    # The free plan has no pre-deploy hook, so migrations run when the container starts (safe to repeat).
-    dockerCommand: sh -c "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --log-config backend/logging_config.json --no-access-log"
+    # No dockerCommand: the Dockerfile CMD applies migrations (the free plan has no pre-deploy hook), then starts the API.
     envVars:
       - key: ENVIRONMENT
         value: production

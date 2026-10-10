@@ -18,4 +18,5 @@ RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-config backend/logging_config.json --no-access-log"]
+# Apply any pending migrations (safe to repeat), then start the API. Hosts that set PORT (Render) override 8000.
+CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-config backend/logging_config.json --no-access-log"]

@@ -26,4 +26,4 @@ Vercel needs no environment variables: the browser calls `/api/...` on the Verce
 
 ## Limits
 
-Free hosting sleeps when idle (the first request can take about a minute). Migrations run at container start because the free plan has no pre-deploy command; with several instances use a pre-deploy command instead.
+Free hosting sleeps when idle (the first request can take about a minute). Migrations run from the Dockerfile start command because the free plan has no pre-deploy command; with several instances use a pre-deploy command instead.
