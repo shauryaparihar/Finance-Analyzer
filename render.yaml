@@ -16,5 +16,9 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         value: https://finance-analyzer-nu.vercel.app
+      - key: GOOGLE_CLIENT_ID  # from Google Cloud Console (see docs/deployment.md); leave empty to hide the Google button
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: DATABASE_URL
         sync: false  # paste the PostgreSQL connection string in the Render dashboard; never commit it

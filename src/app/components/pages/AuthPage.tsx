@@ -1,6 +1,7 @@
 import { FormEvent, useRef, useState } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router";
-import { ApiError } from "../../api";
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from "react-router";
+import { ApiError, GOOGLE_LOGIN_URL, getProviders } from "../../api";
+import { useResource } from "../../hooks/useResource";
 import { useAuth } from "../../context/AuthContext";
 import { CredentialErrors, serverFieldErrors, validateCredentials } from "../../lib/validation";
 import { AuthForm } from "../AuthForm";
@@ -20,6 +21,9 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
   const isLogin = mode === "login";
+  const providers = useResource(() => getProviders().catch(() => ({ google: false, demo: false })), []).data;
+  const [params] = useSearchParams();
+  const googleFailed = params.get("google") === "failed";
   const destination = (location.state as { from?: string } | null)?.from ?? "/";
 
   if (status === "loading") return <div className="flex min-h-screen items-center justify-center bg-background"><Spinner label="Checking your session..." /></div>;
@@ -66,9 +70,18 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           onEmail={setEmail} onPassword={setPassword} onConfirm={setConfirm} onBlurField={recheck} onSubmit={submit}
         >
           {notice && <Notice tone="warn">{notice}</Notice>}
+          {googleFailed && <Notice tone="warn">Google sign-in did not complete. Please try again, or use your email and password.</Notice>}
           {formError !== null && <ErrorNotice error={formError} />}
         </AuthForm>
-        {isLogin && (
+        {providers?.google && (
+          <a
+            href={GOOGLE_LOGIN_URL}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-4 py-2 text-sm text-foreground transition-colors hover:bg-secondary"
+          >
+            Continue with Google
+          </a>
+        )}
+        {isLogin && providers?.demo && (
           <div className="mt-4 text-center">
             <button
               type="button" disabled={busy} className="text-sm text-primary underline-offset-4 hover:underline disabled:opacity-60"
