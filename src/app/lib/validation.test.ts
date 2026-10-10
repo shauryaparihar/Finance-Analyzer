@@ -27,6 +27,20 @@ describe("checking the login form before sending it", () => {
   });
 });
 
+describe("confirming the password when registering", () => {
+  it("catches a typo before the account is created", () => {
+    expect(validateCredentials("register", "a@b.co", "correct-horse", "correct-horze").confirm).toBe("The two passwords do not match.");
+    expect(validateCredentials("register", "a@b.co", "correct-horse", "").confirm).toBe("Type the password again to confirm it.");
+  });
+  it("accepts matching passwords, and never asks when logging in", () => {
+    expect(validateCredentials("register", "a@b.co", "correct-horse", "correct-horse")).toEqual({});
+    expect(validateCredentials("login", "a@b.co", "whatever", "different").confirm).toBeUndefined();
+  });
+  it("does not pile a mismatch message on top of a too-short password", () => {
+    expect(validateCredentials("register", "a@b.co", "abc", "xyz").confirm).toBeUndefined();
+  });
+});
+
 describe("showing the server's own field messages under the right field", () => {
   it("maps known fields and ignores others", () => {
     expect(serverFieldErrors([

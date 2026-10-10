@@ -99,6 +99,18 @@ describe("login form", () => {
       <AuthForm mode="register" email="" password="" errors={{}} busy={false} onEmail={noop} onPassword={noop} onBlurField={noop} onSubmit={noop} {...over} />,
     );
 
+  it("asks a new user to confirm the password, but not someone logging in", () => {
+    expect(form()).toContain("Confirm password");
+    expect(form({ errors: { confirm: "The two passwords do not match." } })).toContain("The two passwords do not match.");
+    expect(form({ mode: "login" })).not.toContain("Confirm password");
+  });
+
+  it("offers a show-password button that starts hidden", () => {
+    const html = form();
+    expect(html).toContain('aria-label="Show password"');
+    expect(html).toContain('type="password"');
+  });
+
   it("turns off the browser's own pop-up messages so the app's styled ones are used", () => {
     expect(form()).toContain("novalidate");
   });

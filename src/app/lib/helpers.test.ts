@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { amount, dateTime, duration, monthLabel, percent, shortDate } from "./format";
-import { categoryOptions, categorySource, checkReason, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
+import { categoryOptions, categorySource, checkReason, confidenceCell, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
 import { hasResults, isActive, moduleRun, whyNoResult } from "./status";
 import type { ModuleStatus } from "../types";
 
@@ -61,7 +61,7 @@ describe("which rows to check", () => {
   });
   it("shows confidence as a whole-number percentage", () => {
     expect(confidenceLabel(0.934)).toBe("93%");
-    expect(confidenceLabel(null)).toBe("-");
+    expect(confidenceLabel(null)).toBe("No guess");
   });
   it("offers the model's categories plus the user's own, sorted, without duplicates or Uncategorized", () => {
     expect(categoryOptions(["Rent", "Groceries"], ["Groceries", "My Label", "Uncategorized"])).toEqual(["Groceries", "My Label", "Rent"]);
@@ -84,5 +84,18 @@ describe("upload status", () => {
     expect(whyNoResult(modules("running", null), "forecast")).toBe("This step has not finished yet.");
     expect(whyNoResult([], "anomaly")).toBe("No result is available for this upload.");
     expect(moduleRun(modules("completed", null), "forecast")?.status).toBe("completed");
+  });
+});
+
+describe("the model confidence column", () => {
+  it("shows the model's confidence only when its guess is the category shown", () => {
+    expect(confidenceCell(row({ prediction_confidence: 0.82 }))).toBe("82%");
+  });
+  it("says there was no guess when the model made none (blank or unrecognised text)", () => {
+    expect(confidenceCell(row({ category: "Groceries", confirmed_category: "Groceries", predicted_category: null, prediction_confidence: null }))).toBe("No guess");
+    expect(confidenceCell(row({ category: "Uncategorized", predicted_category: "Uncategorized", prediction_confidence: null }))).toBe("No guess");
+  });
+  it("says the guess was not used when the person's choice or their file's category is shown instead", () => {
+    expect(confidenceCell(row({ category: "Fixed", confirmed_category: "Fixed", predicted_category: "Groceries", prediction_confidence: 0.9 }))).toBe("Not used");
   });
 });
