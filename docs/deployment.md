@@ -11,6 +11,8 @@ Frontend on Vercel, API on Render (Docker), PostgreSQL on a separate free provid
 | `FRONTEND_URL` | Render | the exact production origin, `https://finance-analyzer-nu.vercel.app` (no trailing slash) |
 | `EXTRA_FRONTEND_ORIGINS` | Render, optional | other exact https origins (custom domain), comma-separated, no wildcards |
 | `DATABASE_URL` | Render, entered by hand | the PostgreSQL connection string; `postgres://` and `postgresql://` are accepted |
+| `DEMO_ENABLED` | Render | `true` to offer the read-only guest login (set by `render.yaml`) |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Render, entered by hand | from the Google Cloud OAuth client below; leave empty to hide "Continue with Google" |
 | other settings | optional | see `.env.example` |
 
 Vercel needs no environment variables: the browser calls `/api/...` on the Vercel address and `vercel.json` rewrites it to the Render service. This keeps the login cookie on one origin.
@@ -27,3 +29,15 @@ Vercel needs no environment variables: the browser calls `/api/...` on the Verce
 ## Limits
 
 Free hosting sleeps when idle (the first request can take about a minute). Migrations run from the Dockerfile start command because the free plan has no pre-deploy command; with several instances use a pre-deploy command instead.
+
+## Google sign-in (OAuth client)
+
+1. Google Cloud Console -> create or choose a project -> **APIs & Services -> OAuth consent screen**: user type External, app name, support email; add yourself as a test user while the app is in Testing.
+2. **Credentials -> Create credentials -> OAuth client ID -> Web application**.
+3. **Authorized redirect URIs**: `https://<your-vercel-domain>/api/auth/google/callback` (and `http://localhost:5173/api/auth/google/callback` for local use). The address must match `FRONTEND_URL` exactly.
+4. Copy the client ID and secret into Render's environment as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` (never into the repository or a chat).
+5. After the deploy, `GET /api/auth/providers` should say `"google": true` and the login page shows the button.
+
+## Administrators
+
+There is deliberately no way to make yourself an administrator from the website. Promote an account in the database (Neon SQL editor): `UPDATE users SET role = 'admin' WHERE email = 'you@example.com';`
