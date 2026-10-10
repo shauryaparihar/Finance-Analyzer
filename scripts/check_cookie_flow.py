@@ -61,8 +61,10 @@ def main() -> int:
     password = secrets.token_urlsafe(18)
 
     print(f"Checking the login cookie flow at {base}\n")
-    with httpx.Client(base_url=base, timeout=30, follow_redirects=False) as client:
+    # Free hosting puts idle servers to sleep; the first request can take a minute while the server wakes up.
+    with httpx.Client(base_url=base, timeout=120, follow_redirects=False) as client:
         # 1. the API is reachable through this address
+        print("  (the first request may take up to a minute if the server was asleep)")
         try:
             probe = client.get("/api/auth/me")
         except httpx.HTTPError as exc:
@@ -75,7 +77,12 @@ def main() -> int:
         # 2. login: the cookie must reach the browser
         client.post("/api/auth/register", json={"email": email, "password": password})
         login = client.post("/api/auth/login", json={"email": email, "password": password})
-        if not check("login succeeds", login.status_code == 200, f"got {login.status_code} {code(login)}"):
+        hint = ""
+        if code(login) == "NOT_READY":
+            hint = " The backend is up but cannot reach its database (or model): check DATABASE_URL on the hosting service."
+        elif code(login) == "VALIDATION_ERROR":
+            hint = " The server rejected the throwaway account details."
+        if not check("login succeeds", login.status_code == 200, f"got {login.status_code} {code(login)}.{hint}"):
             return 1
         check("the login response body does not contain the refresh secret", "refresh" not in login.text.lower())
         headers = cookie_headers(login)
@@ -118,7 +125,7 @@ def main() -> int:
             client.post("/api/auth/refresh", headers={**CSRF, "Origin": origin})
             print("        (waiting 11 seconds for the replay window to close...)")
             time.sleep(11)
-            with httpx.Client(base_url=base, timeout=30) as thief:
+            with httpx.Client(base_url=base, timeout=120) as thief:
                 thief.cookies.set(COOKIE, old, path="/api/auth")
                 replay = thief.post("/api/auth/refresh", headers={**CSRF, "Origin": origin})
             check("replaying an old cookie is detected", code(replay) == "REFRESH_REUSED", f"got {code(replay)}")
