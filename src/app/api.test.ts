@@ -210,10 +210,14 @@ describe("refreshing the session", () => {
 });
 
 describe("checking that the browser keeps the login cookie", () => {
-  it("passes when the cookie comes back, and stores the renewed token", async () => {
-    fetchMock.mockResolvedValue(reply(200, tokenBody("renewed")));
+  it("passes when the server recognises the cookie, and changes nothing about the session", async () => {
+    tokenStore.set("just-logged-in");
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     await expect(verifySessionCookie()).resolves.toBe(true);
-    expect(tokenStore.get()).toBe("renewed");
+    expect(tokenStore.get()).toBe("just-logged-in");
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain("/auth/session-check"); // never /auth/refresh: that would rotate the cookie
+    expect(init.method).toBe("POST");
   });
   it("reports false, but does NOT end the current session, when the server never sees the cookie", async () => {
     tokenStore.set("just-logged-in");

@@ -255,3 +255,23 @@ def test_a_rejected_refresh_is_logged_with_its_reason_but_without_any_secret(cli
     csrf = [e for e in entries if e["event"] == "csrf_rejected"]
     assert csrf and csrf[0]["origin"] == "https://evil.example" and csrf[0]["origin_known"] is False
     assert PASSWORD not in json.dumps(entries)
+
+
+def test_session_check_confirms_a_live_cookie_without_rotating_it(client, session, db):
+    before = _cookie(client)
+    for _ in range(3):
+        assert client.post("/api/auth/session-check", headers=CSRF).status_code == 204
+    assert _cookie(client) == before  # nothing was rotated, so an interrupted check can never lose the cookie
+    assert db.scalar(select(func.count()).select_from(RefreshToken)) == 1
+    assert _refresh(client).status_code == 200  # and the cookie still works for a real refresh
+
+
+def test_session_check_rejects_missing_revoked_and_unsafe_requests(client, session):
+    assert client.post("/api/auth/session-check").status_code == 403  # no custom header
+    assert client.post("/api/auth/session-check", headers={**CSRF, "Origin": "https://evil.example"}).status_code == 403
+    cookie = _cookie(client)
+    client.post("/api/auth/logout", headers=CSRF)
+    client.cookies.set(REFRESH_COOKIE, cookie, path="/api/auth")
+    assert client.post("/api/auth/session-check", headers=CSRF).status_code == 401  # logged-out token
+    client.cookies.clear()
+    assert client.post("/api/auth/session-check", headers=CSRF).status_code == 401  # no cookie at all

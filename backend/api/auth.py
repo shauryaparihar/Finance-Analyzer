@@ -117,6 +117,19 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     return TokenOut(access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60)
 
 
+@router.post("/session-check", status_code=204)
+def session_check(request: Request, db: Session = Depends(get_db)):
+    """Does the browser send back a live refresh cookie? Answers 204 or 401 and changes nothing (no rotation).
+
+    The website asks this right after login. Using /refresh for that would rotate the token while the person
+    might reload the page, losing the new cookie in flight and logging them out.
+    """
+    _require_same_site_request(request)
+    if not refresh_tokens.is_valid(db, request.cookies.get(REFRESH_COOKIE)):
+        raise AppError(401, "REFRESH_INVALID", "Please log in again.")
+    return Response(status_code=204)
+
+
 @router.post("/logout", status_code=204)
 def logout(request: Request, response: Response, db: Session = Depends(get_db)):
     """End this login session everywhere: the refresh token family is revoked and the cookie is removed."""
