@@ -10,7 +10,7 @@ from typing import Any, Optional
 import pandas as pd
 from sqlalchemy import and_, delete, func, insert, or_, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, UploadInput, User
@@ -624,3 +624,62 @@ def count_decisions_outside_queue(db: Session, user_id: uuid.UUID, upload_id: uu
         )
     )
     return int(db.scalar(stmt) or 0)
+
+
+# --- accounts: roles, demo and admin summaries (aggregates only, never financial rows) ---
+
+DEMO_EMAIL = "demo@example.com"
+UNUSABLE_PASSWORD_HASH = "!"  # not an Argon2 hash, so no password can ever match it
+
+
+def get_or_create_demo_user(db: Session) -> User:
+    user = get_user_by_email(db, DEMO_EMAIL)
+    if user is not None:
+        return user
+    user = User(email=DEMO_EMAIL, password_hash=UNUSABLE_PASSWORD_HASH, role="demo")
+    db.add(user)
+    try:
+        db.commit()
+    except IntegrityError:  # two guests arriving at the same moment
+        db.rollback()
+        return get_user_by_email(db, DEMO_EMAIL)  # type: ignore[return-value]
+    db.refresh(user)
+    return user
+
+
+def admin_overview(db: Session) -> dict:
+    users_by_role = {role: n for role, n in db.execute(select(User.role, func.count()).group_by(User.role)).all()}
+    uploads_by_status = {st: n for st, n in db.execute(select(Upload.status, func.count()).group_by(Upload.status)).all()}
+    week_ago = func.now() - text("interval '7 days'")
+    return {
+        "users_total": sum(users_by_role.values()),
+        "users_active": int(db.scalar(select(func.count()).select_from(User).where(User.is_active.is_(True))) or 0),
+        "users_by_role": users_by_role,
+        "uploads_total": sum(uploads_by_status.values()),
+        "uploads_by_status": uploads_by_status,
+        "uploads_last_7_days": int(db.scalar(select(func.count()).select_from(Upload).where(Upload.created_at >= week_ago)) or 0),
+    }
+
+
+def admin_list_users(db: Session, limit: int = 200) -> list[dict]:
+    counts = select(Upload.user_id, func.count().label("n")).group_by(Upload.user_id).subquery()
+    rows = db.execute(
+        select(User, func.coalesce(counts.c.n, 0))
+        .outerjoin(counts, counts.c.user_id == User.id)
+        .order_by(User.created_at.desc())
+        .limit(limit)
+    ).all()
+    return [
+        {"id": u.id, "email": u.email, "role": u.role, "is_active": u.is_active, "created_at": u.created_at, "upload_count": int(n)}
+        for u, n in rows
+    ]
+
+
+def set_user_active(db: Session, user_id: uuid.UUID, active: bool) -> Optional[User]:
+    user = db.get(User, user_id)
+    if user is None:
+        return None
+    user.is_active = active
+    db.commit()
+    db.refresh(user)
+    return user

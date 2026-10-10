@@ -1,7 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router";
-import { AlertTriangle, BarChart3, LogOut, Tags, TrendingUp, Upload } from "lucide-react";
+import { AlertTriangle, BarChart3, LogOut, ShieldCheck, Tags, TrendingUp, Upload } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { CookieNotice } from "./common";
+import { CookieNotice, Notice } from "./common";
 import { cn } from "./ui/utils";
 
 const navItems = [
@@ -21,8 +21,11 @@ function Brand() {
   );
 }
 
+const adminItem = { path: "/admin", label: "Admin", icon: ShieldCheck, end: false };
+
 export function Layout() {
   const { user, logout, cookieWarning } = useAuth();
+  const items = user?.role === "admin" ? [...navItems, adminItem] : navItems;
 
   return (
     <div className="flex min-h-screen flex-col bg-background md:h-screen md:flex-row md:overflow-hidden">
@@ -32,7 +35,7 @@ export function Layout() {
           <Brand />
         </div>
         <nav className="flex-1 space-y-1 p-4" aria-label="Main">
-          {navItems.map(({ path, label, icon: Icon, end }) => (
+          {items.map(({ path, label, icon: Icon, end }) => (
             <NavLink
               key={path}
               to={path}
@@ -69,7 +72,7 @@ export function Layout() {
           </button>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2" aria-label="Main">
-          {navItems.map(({ path, label, icon: Icon, end }) => (
+          {items.map(({ path, label, icon: Icon, end }) => (
             <NavLink
               key={path}
               to={path}
@@ -89,6 +92,14 @@ export function Layout() {
       </header>
 
       <main className="min-w-0 flex-1 md:overflow-auto">
+        {user?.role === "demo" && (
+          <div className="px-4 pt-4 sm:px-8 sm:pt-6">
+            <Notice tone="info">
+              You are using the <strong>read-only demo</strong>: look around, but uploading, editing and deleting are switched off.{" "}
+              <button onClick={() => logout()} className="underline">Log out to create your own account</button>.
+            </Notice>
+          </div>
+        )}
         {cookieWarning && <div className="px-4 pt-4 sm:px-8 sm:pt-6"><CookieNotice /></div>}
         <Outlet />
       </main>

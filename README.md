@@ -1,178 +1,156 @@
-# Personal Finance Analyzer and Expense Predictor
+# FinSight: budget risk and transaction review
 
-A production-quality, full-stack machine learning application that analyzes financial transaction data. It provides automated insights including expense categorization, spending predictions, anomaly detection, and user segmentation through a modern React dashboard.
+Upload a CSV export of your bank transactions and FinSight shows where the money goes, warns when a monthly budget is on course to be exceeded, forecasts the next 31 days of spending, and queues the few expenses worth a second look. Every automatic decision can be overridden by you, and the app says plainly when it is unsure.
 
-**Live Demo**: [finance-analyzer-5n87ronca-shaurya-9039.vercel.app](https://finance-analyzer-5n87ronca-shaurya-9039.vercel.app)
+**Live demo:** https://finance-analyzer-nu.vercel.app (free hosting: the first request after a quiet period can take about a minute while the server wakes up). Use practice data, not your real statements.
 
-## Features
+**Status: a portfolio project, not production software.** The categorizer was trained on synthetic data and has not yet been measured on real statements (see [Limitations](#limitations)).
 
-| Feature | Description | Model |
-|---------|-------------|-------|
-| Expense Categorization | Automatically classifies transactions into categories | Logistic Regression, Random Forest, XGBoost |
-| Spending Forecast | Forecasts the next 31 days; a lag-feature random forest is used only if it beats a seasonal-naive baseline in rolling backtests | Seasonal naive, Random Forest |
-| Unusual Transaction Review | Ranks the top 10 expenses that stand out for their category, with a reason; you confirm or dismiss each (not fraud detection) | Category-relative robust deviation |
-| High Performance | Concurrency control processes 50,000+ row datasets in seconds | ThreadPoolExecutor |
-| Premium UI System | Modern Emerald/Slate design using a strict 8-point grid | React / Tailwind CSS |
+## What it does
+
+| Screen | What you get | How it works |
+|---|---|---|
+| Upload and history | Validated upload, live progress per step, your past analyses, delete | A durable job queue stored in PostgreSQL |
+| Overview and budgets | Totals, spending by category and month, monthly budgets with "projected month end" and a status | Plain aggregation plus a simple month-end projection |
+| Forecast | Next 31 days of spending, with the backtest scores of the model and of a baseline | A lag-feature random forest is used **only if** it beats a seasonal-naive baseline in a rolling backtest |
+| Unusual transactions | Up to 10 expenses that stand out for their category, each with a reason; you confirm or dismiss | Robust deviation from the category's typical amount; repeating charges (rent) are skipped. **Not fraud detection** |
+| Category review | Rows with no category or an unsure guess, fixed from a list | TF-IDF + logistic regression, with a confidence threshold and an unrecognised-text guard |
 
 ## Architecture
 
 ```
-┌─────────────────────────────┐     ┌──────────────────────────────┐
-│       React Frontend        │────▶│       FastAPI Backend        │
-│       (Vite / Port 5173)    │     │       (Port 8000)            │
-│                             │     │                              │
-│  ┌──────────────────────┐   │     │  ┌────────────────────────┐  │
-│  │ Dashboard Pages      │   │     │  │ ML Pipeline            │  │
-│  │ - Overview           │   │     │  │ - Preprocessing        │  │
-│  │ - Predictions        │   │     │  │ - Categorization       │  │
-│  │ - Anomalies          │   │     │  │ - Prediction           │  │
-│  │ - Segmentation       │   │     │  │ - Anomaly Detection    │  │
-│  └──────────────────────┘   │     │  │ - Segmentation         │  │
-└─────────────────────────────┘     │  └────────────────────────┘  │
-                                    │                              │
-                                    │  ┌────────────────────────┐  │
-                                    │  │ PostgreSQL Database    │  │
-                                    │  └────────────────────────┘  │
-                                    └──────────────────────────────┘
+Browser ──▶ Vercel (React app)
+              │  /api/*  is forwarded to Render, so the login cookie stays on one site
+              ▼
+           Render (FastAPI in Docker) ──▶ PostgreSQL (Neon)
+              │   • JWT access token (15 min, kept in memory) + rotating HttpOnly refresh cookie
+              │   • upload ▶ validate ▶ queue a job row in PostgreSQL
+              │   • worker threads claim jobs (FOR UPDATE SKIP LOCKED) and run:
+              │       categorize ▶ forecast ▶ unusual-transaction ranking ▶ summary
+              └── the model artifact (backend/artifacts/categorizer/) is trained offline and only loaded here
 ```
 
-## Quick Start
+Data flow for one upload: the file is checked (size, rows, columns, dates, amounts), cleaned and saved as a queued job with its owner's id; a worker analyses it and saves each module's result or its error; the website polls the status and shows each screen as its result arrives. Every read and write is filtered by the logged-in user's id.
 
-### 1. Install Dependencies
+## Setup (local)
 
-Install Python dependencies for the backend:
-```bash
-pip install -r requirements.txt
-```
-
-Install Node.js dependencies for the frontend:
-```bash
-npm install
-```
-
-### 2. Train the categorizer (optional: a trained model is already included)
+Requirements: Python 3.11, Node 22, Docker.
 
 ```bash
-python -m backend.ml.prepare_training_data   # download the synthetic training data
-python -m backend.ml.train_categorizer       # train + evaluate + write backend/artifacts/categorizer/
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt     # backend + test tools (pinned model libraries)
+npm ci                                   # frontend
+cp .env.example .env                     # then adjust (see the table below)
+
+docker compose up -d --wait db           # PostgreSQL
+alembic upgrade head                     # create/upgrade the schema from an empty database
+python -m uvicorn backend.main:app --reload --port 8000   # API  (http://127.0.0.1:8000/docs)
+npm run dev                              # website (http://localhost:5173)
 ```
 
-See `docs/model_card.md` for what the model can and cannot do. All reported scores are on synthetic data.
+Or run the API in Docker too: `docker compose up --build` (applies migrations, serves on port 8000).
 
-### 3. Generate Sample Data
+Open http://localhost:5173, create an account, and upload `data/sample_descriptions_only.csv` (no categories, so the model does the work) or `data/sample_transactions.csv` (categories filled in).
 
-Create a baseline dataset for testing:
+### Configuration (environment variables)
+
+| Variable | Purpose |
+|---|---|
+| `ENVIRONMENT` | `development` (default) or `production` (Secure cookies, strict startup checks) |
+| `DATABASE_URL` | PostgreSQL connection string (`postgres://` and `postgresql://` are accepted) |
+| `JWT_SECRET` | Required in production: long random value; the built-in development secret is refused |
+| `FRONTEND_URL` | The exact website origin allowed to use the cookie endpoints (no trailing slash) |
+| `EXTRA_FRONTEND_ORIGINS` | Optional extra exact https origins, comma-separated, no wildcards |
+| `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_DAYS`, `REFRESH_FAMILY_MAX_DAYS`, `COOKIE_SECURE` | Login session settings |
+| `ANALYSIS_WORKERS`, `MAX_ACTIVE_JOBS`, `JOB_*` | Background-job settings |
+| `LOG_LEVEL`, `LOG_EXCEPTION_MESSAGES` | Logging (exception messages stay off by default: they can echo user data) |
+
+Full list with defaults: [`.env.example`](.env.example). Deployment settings: [`docs/deployment.md`](docs/deployment.md).
+
+## CSV format
+
+| Column | Required | Notes |
+|---|---|---|
+| `date` | Yes | `2025-03-15` preferred; mixed formats are parsed |
+| `amount` | Yes | Positive = money spent, negative = money in, unless you tell the upload otherwise (`auto`, `expenses_positive`, `expenses_negative`; `auto` asks you to choose if the signs are too mixed to tell) |
+| `description` | Optional | Without it a row stays "Uncategorized" for you to categorize |
+| `category` | Optional | Your own label always wins over the model |
+
+Limits: 5 MB and 50,000 rows per file; a few invalid rows are dropped and reported, many are refused.
+
+## API summary
+
+All endpoints except register, login, refresh, logout, session-check and the health checks need `Authorization: Bearer <access token>`. Interactive documentation: `/docs`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/auth/register`, `/api/auth/login` | Create an account; log in (sets the HttpOnly refresh cookie) |
+| POST | `/api/auth/refresh`, `/api/auth/logout`, `/api/auth/session-check` | Rotate the cookie and get a new access token; end the session; read-only cookie check |
+| GET | `/api/auth/me` | Current user |
+| POST | `/api/uploads` | Upload a CSV (202 queued, or 200 `reused` for the same file) |
+| GET | `/api/uploads`, `/api/uploads/{id}`, `/api/uploads/{id}/status` | List, details, per-step status |
+| GET | `/api/uploads/{id}/summary`, `/forecast`, `/budget-risk`, `/anomalies`, `/transactions` | Results |
+| PATCH | `/api/transactions/{id}/category`, `/api/transactions/{id}/anomaly-review` | Your correction; confirm or dismiss an unusual transaction |
+| DELETE | `/api/uploads/{id}` | Delete an upload and everything derived from it |
+| GET/PUT/DELETE | `/api/budgets`, `/api/budgets/{category}` | Monthly budgets |
+| GET | `/api/categories`, `/healthz`, `/readyz` | Category list; liveness; readiness (database and model) |
+
+## Tests and checks
+
 ```bash
-python scripts/generate_sample_data.py
+ruff check .                  # lint
+pytest                        # backend: unit, API and end-to-end tests (needs the PostgreSQL container above)
+npm run typecheck && npm test # frontend
+npm run build                 # production build
+python scripts/check_cookie_flow.py https://your-site --check-replay   # live login-cookie check
 ```
 
-### 4. Launch the Application
+CI (`.github/workflows/ci.yml`) runs the same on every pull request and on `main`; `main` is protected: changes arrive through a pull request with both jobs green.
 
-Start the backend server:
-```bash
-docker compose up -d db          # PostgreSQL
-alembic upgrade head             # create/upgrade the database schema
-python -m uvicorn backend.main:app --reload --port 8000
-```
+## Models and how they were evaluated
 
-In a separate terminal, start the React frontend:
-```bash
-npm run dev
-```
+Details, numbers and limits are in [`docs/model_card.md`](docs/model_card.md). In short:
 
-Open http://localhost:5173, create an account on the Register page, then upload a practice file from `data/`: `sample_transactions.csv` has categories filled in; `sample_descriptions_only.csv` has none, so the model categorizes it and the Category review screen has rows to check (regenerate it with `python scripts/generate_description_only_sample.py`).
+- **Categorizer:** TF-IDF + logistic regression, 17 categories, trained offline (`python -m backend.ml.prepare_training_data`, then `python -m backend.ml.train_categorizer`) on a **synthetic** public dataset. Grouped cross-validation macro-F1 is 0.942 ± 0.026 (held-out test set 0.972) **on synthetic data only**. Rows the model is unsure about, or whose text it does not recognise, are left "Uncategorized" for you.
+- **Forecast:** rolling-origin backtest against a seasonal-naive baseline; the model is used only if its error is lower, and both scores are shown.
+- **Unusual transactions:** a ranking aid built from a robust per-category deviation, tested on synthetic injected spikes (precision@10 about 0.89 at the shipped cut-off). The queue can be empty.
 
-The application will be available at:
-- **Dashboard**: http://localhost:5173
-- **API Documentation**: http://127.0.0.1:8000/docs
+### Timing on a large upload
 
-## CSV Format
+`python -m backend.benchmark` generates 50,000 deterministic synthetic rows and times the analysis (1 warm-up run discarded, 7 measured runs). Measured on an Apple-silicon Mac (macOS 15, 10 cores, Python 3.11.17, pandas 3.0.6, scikit-learn 1.9.1):
 
-Uploaded files should follow this structure:
+| Stage (50,000 rows) | Median | p95 (slowest of 7) |
+|---|---|---|
+| CSV parse and validation | 0.016 s | 0.016 s |
+| Categorization (model inference) | 0.88 s | 0.91 s |
+| Forecast (rolling backtest + fit) | 17.5 s | 17.6 s |
+| Unusual-transaction ranking | 0.68 s | 0.69 s |
+| Whole pipeline | 18.3 s | 18.3 s |
 
-| Column | Required | Description |
-|--------|----------|-------------|
-| `date` | Yes | Transaction date (Y-M-D format preferred) |
-| `amount` | Yes | Transaction amount (positive for expenses) |
-| `category` | Optional | Known category for training |
-| `description` | Optional | Transaction details for NLP processing |
+Not included: network time, login, database reads and writes, and the browser. The forecast dominates because it repeatedly fits a random forest during the backtest (its cost depends on the number of days of history, not on the number of rows). These numbers are for a local laptop; the free Render instance is much less powerful and was **not** measured.
 
-## API Endpoints
+## Security and privacy design
 
-All endpoints except register/login/health need `Authorization: Bearer <token>`.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | /api/auth/register | Create an account |
-| POST | /api/auth/login | Get a short-lived access token |
-| GET | /api/auth/me | Current user |
-| POST | /api/uploads | Upload a CSV: 202 queued, or 200 `reused` if you already analysed the same file; optional `amount_convention` |
-| GET | /api/uploads | List your uploads |
-| GET | /api/uploads/{id} | Upload details |
-| GET | /api/uploads/{id}/status | Overall status plus per-module status, timing and errors |
-| GET | /api/uploads/{id}/summary | Spending summary |
-| GET | /api/uploads/{id}/forecast | Spending forecast with backtest scores vs a baseline |
-| GET | /api/uploads/{id}/budget-risk | Spent so far and projected month-end per budget |
-| GET | /api/budgets | Your monthly budgets |
-| PUT | /api/budgets/{category} | Create or update a monthly limit |
-| DELETE | /api/budgets/{category} | Remove a budget |
-| GET | /api/uploads/{id}/anomalies | Unusual-transaction review queue |
-| PATCH | /api/transactions/{id}/anomaly-review | Confirm or dismiss a queued transaction |
-| GET | /api/uploads/{id}/transactions | Transactions (`limit`, `offset`, `review_required`) |
-| PATCH | /api/transactions/{id}/category | Set your own category for a transaction |
-| DELETE | /api/uploads/{id} | Delete an upload and its data |
-| GET | /healthz, /readyz | Liveness and readiness |
-
-## Project Structure
-
-- **src/**: React frontend source code (components, hooks, pages).
-- **backend/**: FastAPI application, ML modules, and data models.
-- **data/**: Local storage for uploads and sample datasets.
-- **scripts/**: Utility scripts for data generation and testing.
-
-## Tech Stack
-
-- **Frontend**: React 18, Vite, Tailwind CSS, Recharts
-- **Backend**: FastAPI, SQLAlchemy, Alembic, PostgreSQL
-- **ML**: Scikit-Learn, XGBoost, Statsmodels
-- **Data**: Pandas, NumPy
+- Passwords are stored as Argon2 hashes. A short-lived access token is kept **in memory only**; the refresh token is a random secret in a `HttpOnly; SameSite=Strict; Secure` cookie limited to `/api/auth`, stored hashed, rotated on every use, with replay detection that revokes the whole session. Cookie endpoints also require a custom header and a known origin.
+- Every upload, transaction and result belongs to a user id; a request for someone else's resource looks identical to a request for a missing one.
+- Uploads are limited and validated; errors returned to the client never contain stack traces or file contents; transaction descriptions are not written to logs.
+- Only the repository's own model artifact is ever loaded, after a checksum check; user files are never deserialised as models.
+- Raw cleaned input is kept in the database only while its job is queued or running. Deleting an analysis removes its rows.
+- Private test data lives in `data/private/` (gitignored, excluded from Docker, guarded by a test).
 
 ## Deployment
 
-This project is configured for deployment on **Render** (backend) + **Vercel** (frontend).
+Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers). The Dockerfile applies migrations when the container starts. See [`docs/deployment.md`](docs/deployment.md) for settings and the order of steps.
 
-See [docs/deployment.md](docs/deployment.md) for the step-by-step setup (Render API from `render.yaml`, external PostgreSQL, Vercel frontend with an `/api` rewrite).
+## Limitations
 
-### Environment Variables Reference
+- **Synthetic training data.** Scores are for generated bank text. A check on real statements has not been completed, so real-world accuracy is unknown and likely lower.
+- Plausible-looking made-up merchants still receive a guess; meaningless text is mostly (not always) caught.
+- Email addresses are checked for shape only, there is no email verification and no password reset (version 2).
+- Free hosting sleeps when idle; the forecast is slow on large histories (see the timing above); only one server instance is configured, and migrations run at container start.
+- Unusual-transaction evaluation used injected amount spikes only; real-world precision is unknown. Repeating charges are matched by exact description text.
+- Corrections you make are saved but are not used to retrain the model.
 
-| Variable | Where | Description |
-|----------|-------|-------------|
-| `ENVIRONMENT` | Render | Set to `production` to restrict CORS |
-| `FRONTEND_URL` | Render | Vercel domain for CORS allowlist |
-| `DATABASE_URL` | Render | PostgreSQL connection string (`postgresql+psycopg://...`; defaults to the local Docker database) |
-| `JWT_SECRET` | Render | Long random secret (generated by `render.yaml`) |
-| `EXTRA_FRONTEND_ORIGINS` | Render | Optional extra exact https origins |
+## Future work
 
-
-
-## Frontend checks
-
-```bash
-npm run typecheck   # TypeScript, strict
-npm test            # API client, helpers, rendered screens, copy rules
-npm run build
-```
-
-## Login security
-
-- Passwords are stored as Argon2 hashes. Logging in returns a short-lived (15 minute) **access token** that the website keeps **in memory only**, plus a **refresh token** in a `HttpOnly; SameSite=Strict` cookie (`Secure` in production) that page scripts cannot read.
-- The refresh token **rotates** each time it is used and is stored only as a hash. If an already-used token is presented again, the whole login session is revoked.
-- The two cookie endpoints (`/api/auth/refresh`, `/api/auth/logout`) also require a custom header and a known origin (`FRONTEND_URL`, plus any `EXTRA_FRONTEND_ORIGINS`). The website must reach the API on the same origin (the Vite dev proxy, or the Vercel rewrite in production) so the browser sends the cookie.
-- After deploying, check the real site: `python scripts/check_cookie_flow.py https://your-site --check-replay`. It verifies the cookie reaches the browser through the rewrite, rotates, is refused for unknown origins, and is revoked on logout, and explains any failure. If the cookie ever does not stick, the app shows a warning after login.
-
-## Operations
-
-- Logs are one JSON object per line on stdout, including the server and migration startup lines (start the server with `--log-config backend/logging_config.json --no-access-log`, as the Dockerfile, Compose file, Procfile and `render.yaml` do) (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.
-- `GET /healthz` is liveness; `GET /readyz` checks the database, the categorizer model and the job runner.
-- Analyses run from a durable queue stored in PostgreSQL: an upload row with status `queued` is the job, workers in every application instance claim jobs with `FOR UPDATE SKIP LOCKED`, and a running job keeps a heartbeat. Queued work survives restarts, several instances can run side by side, and a job whose worker died is re-queued automatically (up to `JOB_MAX_ATTEMPTS`). See `.env.example` for the settings.
-- `python -m backend.services.ops_report` prints aggregate job, failure, timing, model-version and forecast-method counts from the database.
+Email verification and password reset; measure and report the categorizer on real labelled data; retrain from user corrections with review; cache or speed up the forecast backtest; a pre-deploy migration step and several API instances; optional AI summaries grounded in the computed numbers.
