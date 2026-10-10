@@ -97,6 +97,8 @@ describe("the model confidence column", () => {
   });
   it("says the guess was not used when the person's choice or their file's category is shown instead", () => {
     expect(confidenceCell(row({ category: "Fixed", confirmed_category: "Fixed", predicted_category: "Groceries", prediction_confidence: 0.9 }))).toBe("Not used");
+  });
+});
 
 describe("unusual-transaction decisions shown before the server answers", () => {
   const items = [
