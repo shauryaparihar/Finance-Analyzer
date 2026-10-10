@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, Undo2, X } from "lucide-react";
+import { reviewedCount, shownStatus, withoutDecision } from "../../lib/review";
 import { ApiError, friendlyMessage, getAnomalies, reviewUnusual } from "../../api";
 import { useAppContext } from "../../context/AppContext";
 import { useResource } from "../../hooks/useResource";
@@ -23,6 +24,9 @@ function UnusualContent({ modules }: { modules: ModuleStatus[] }) {
   const data = useResource(() => getAnomalies(id), [id]);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  // Decisions shown at once while the server is still saving them; dropped when fresh data arrives or a save fails.
+  const [shown, setShown] = useState<Record<number, ReviewStatus>>({});
+  useEffect(() => setShown({}), [data.data]);
 
   if (data.loading && !data.data) return <Spinner label="Loading unusual transactions..." />;
   if (data.error !== null) {
@@ -31,13 +35,19 @@ function UnusualContent({ modules }: { modules: ModuleStatus[] }) {
   }
   const result = data.data as Anomalies;
 
+  const statusOf = (item: UnusualItem): ReviewStatus => shownStatus(item, shown);
+
   async function decide(item: UnusualItem, status: ReviewStatus) {
-    setPending(item.transaction_id);
+    if (pending === item.transaction_id) return; // one save per item at a time
+    const id = item.transaction_id;
+    setPending(id);
     setActionError(null);
+    setShown((current) => ({ ...current, [id]: status }));
     try {
-      await reviewUnusual(item.transaction_id, status);
+      await reviewUnusual(id, status);
       data.reload(); // counts and ordering come from the server
     } catch (e) {
+      setShown((current) => withoutDecision(current, id));
       setActionError(friendlyMessage(e));
     } finally {
       setPending(null);
@@ -61,7 +71,7 @@ function UnusualContent({ modules }: { modules: ModuleStatus[] }) {
         <>
           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
             <span>{result.items.length} to look at (up to {result.review_capacity}) from {result.expenses_scanned} expenses</span>
-            <Pill tone="neutral">{result.reviewed} of {result.items.length} reviewed</Pill>
+            <Pill tone="neutral">{reviewedCount(result.items, shown)} of {result.items.length} reviewed</Pill>
             {result.confirmed > 0 && <Pill tone="warn">{result.confirmed} confirmed</Pill>}
             {result.dismissed > 0 && <Pill tone="good">{result.dismissed} dismissed</Pill>}
           </div>
@@ -82,24 +92,24 @@ function UnusualContent({ modules }: { modules: ModuleStatus[] }) {
                         <span className="font-mono text-xs text-muted-foreground">#{item.rank}</span>
                         <span className="font-mono text-lg text-foreground">{amount(item.amount)}</span>
                         <Pill tone="neutral">{item.category}</Pill>
-                        <Pill tone={STATUS_TONE[item.review_status]}>{STATUS_TEXT[item.review_status]}</Pill>
+                        <Pill tone={STATUS_TONE[statusOf(item)]}>{STATUS_TEXT[statusOf(item)]}</Pill>
                       </div>
                       <p className="truncate text-sm text-foreground" title={item.description ?? ""}>{item.description ?? "(no description)"}</p>
                       <p className="text-xs text-muted-foreground">{shortDate(item.date)}</p>
                       {item.reason && <p className="mt-2 text-sm text-muted-foreground">{item.reason}</p>}
                     </div>
                     <div className="flex shrink-0 gap-2">
-                      {item.review_status === "unreviewed" ? (
+                      {statusOf(item) === "unreviewed" ? (
                         <>
-                          <Button size="sm" variant="outline" disabled={pending === item.transaction_id} onClick={() => void decide(item, "confirmed")} title="Worth following up">
+                          <Button size="sm" variant="outline" onClick={() => void decide(item, "confirmed")} title="Worth following up">
                             <Check className="mr-1 h-4 w-4" /> Confirm
                           </Button>
-                          <Button size="sm" variant="ghost" disabled={pending === item.transaction_id} onClick={() => void decide(item, "dismissed")} title="This is expected">
+                          <Button size="sm" variant="ghost" onClick={() => void decide(item, "dismissed")} title="This is expected">
                             <X className="mr-1 h-4 w-4" /> Dismiss
                           </Button>
                         </>
                       ) : (
-                        <Button size="sm" variant="ghost" disabled={pending === item.transaction_id} onClick={() => void decide(item, "unreviewed")}>
+                        <Button size="sm" variant="ghost" onClick={() => void decide(item, "unreviewed")}>
                           <Undo2 className="mr-1 h-4 w-4" /> Undo
                         </Button>
                       )}
