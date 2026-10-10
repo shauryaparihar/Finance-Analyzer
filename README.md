@@ -117,17 +117,19 @@ Details, numbers and limits are in [`docs/model_card.md`](docs/model_card.md). I
 
 ### Timing on a large upload
 
-`python -m backend.benchmark` generates 50,000 deterministic synthetic rows and times the analysis (1 warm-up run discarded, 7 measured runs). Measured on an Apple-silicon Mac (macOS 15, 10 cores, Python 3.11.17, pandas 3.0.6, scikit-learn 1.9.1):
+`python -m backend.benchmark` generates 50,000 deterministic synthetic rows (three years of history) and times the analysis (1 warm-up run discarded, 7 measured runs). Measured on an Apple-silicon Mac (macOS 15, 10 cores, Python 3.11.17, pandas 3.0.6, scikit-learn 1.9.1):
 
 | Stage (50,000 rows) | Median | p95 (slowest of 7) |
 |---|---|---|
-| CSV parse and validation | 0.016 s | 0.016 s |
-| Categorization (model inference) | 0.88 s | 0.91 s |
-| Forecast (rolling backtest + fit) | 17.5 s | 17.6 s |
-| Unusual-transaction ranking | 0.68 s | 0.69 s |
-| Whole pipeline | 18.3 s | 18.3 s |
+| CSV parse and validation | 0.015 s | 0.016 s |
+| Categorization (model inference) | 0.82 s | 0.84 s |
+| Forecast (backtest + fit) | 2.5 s | 2.5 s |
+| Unusual-transaction ranking | 0.67 s | 0.69 s |
+| Whole pipeline | 3.2 s | 3.2 s |
 
-Not included: network time, login, database reads and writes, and the browser. The forecast dominates because it repeatedly fits a random forest during the backtest (its cost depends on the number of days of history, not on the number of rows). These numbers are for a local laptop; the free Render instance is much less powerful and was **not** measured.
+Not included: network time, login, database reads and writes, and the browser. The forecast re-trains a random forest once per backtest window; it now scores only the 12 most recent windows (before this cap the same file took 17.5 s for the forecast and 18.3 s overall, because the cost grew with the years of history). Files with less than about 12 windows of history, such as the sample files, are unaffected.
+
+**On the free Render instance** (one run each, throwaway account, same 50,000-row file; no median or p95 claimed): *before* the cap the job took 511.6 s (forecast 480.6 s) and ended "failed" (probably a missed heartbeat on a very slow, shared CPU; the cause was not confirmed because server logs were not available). *After* the cap and the longer heartbeat limit (`JOB_STALE_AFTER_SECONDS=600` in `render.yaml`) the same upload finished with status "completed" in 163.2 s (categorization 22.8 s, forecast 68.4 s, unusual ranking 23.3 s, summary 1.3 s, plus 7 s to accept the upload). The free server is roughly 20 to 30 times slower than the laptop on this job.
 
 ## Security and privacy design
 
@@ -147,7 +149,7 @@ Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers).
 - **Synthetic training data.** Scores are for generated bank text. A check on real statements has not been completed, so real-world accuracy is unknown and likely lower.
 - Plausible-looking made-up merchants still receive a guess; meaningless text is mostly (not always) caught.
 - Email addresses are checked for shape only, there is no email verification and no password reset (version 2).
-- Free hosting sleeps when idle; the forecast is slow on large histories (see the timing above); only one server instance is configured, and migrations run at container start.
+- Free hosting sleeps when idle; long histories are slow on the free server (see the timing above); only one server instance is configured, and migrations run at container start.
 - Unusual-transaction evaluation used injected amount spikes only; real-world precision is unknown. Repeating charges are matched by exact description text.
 - Corrections you make are saved but are not used to retrain the model.
 

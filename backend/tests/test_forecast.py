@@ -150,3 +150,20 @@ def test_window_total_error_is_zero_for_a_perfect_forecast_and_correct_for_a_kno
     assert fc._window_total_error_pct(windows, windows) == 0.0
     off_by_ten_percent = [w * 1.1 for w in windows]
     assert fc._window_total_error_pct(windows, off_by_ten_percent) == pytest.approx(10.0)
+
+
+def test_a_long_history_is_scored_on_the_most_recent_folds_only_so_the_cost_is_bounded():
+    n = 1095  # three years of daily values
+    values = np.abs(np.random.default_rng(0).normal(100, 20, n))
+    dates = pd.date_range("2023-01-01", periods=n, freq="D")
+    result = fc.backtest(values, dates)
+    all_folds = list(fc.rolling_origin_splits(n, fc.MIN_TRAIN_DAYS, result["horizon_days"], fc.BACKTEST_STEP_DAYS))
+    assert result["folds"] == fc.MAX_FOLDS < len(all_folds) == result["folds_available"]
+    assert result["forecast_days_scored"] == fc.MAX_FOLDS * result["horizon_days"]
+
+
+def test_a_short_history_is_not_affected_by_the_cap():
+    n = 122  # the sample file: about four months
+    values = np.abs(np.random.default_rng(1).normal(100, 20, n))
+    result = fc.backtest(values, pd.date_range("2025-06-01", periods=n, freq="D"))
+    assert result["folds"] == result["folds_available"] < fc.MAX_FOLDS
