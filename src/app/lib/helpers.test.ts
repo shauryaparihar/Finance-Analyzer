@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { amount, dateTime, duration, monthLabel, percent, shortDate } from "./format";
 import { categoryOptions, categorySource, checkReason, confidenceCell, confidenceLabel, LOW_CONFIDENCE, reviewedCount, shownStatus, usesModelGuess, withoutDecision } from "./review";
+import { ActivityClock, IDLE_LOGOUT_MS, IDLE_NOTICE, isIdle } from "./idle";
 import { hasResults, isActive, moduleRun, whyNoResult } from "./status";
 import type { ModuleStatus } from "../types";
 
@@ -126,5 +127,27 @@ describe("unusual-transaction decisions shown before the server answers", () => 
     expect(after).toEqual({ 2: "unreviewed" });
     expect(saving).toEqual({ 1: "confirmed", 2: "unreviewed" }); // original not modified
     expect(shownStatus(items[0], after)).toBe("unreviewed");
+  });
+});
+
+describe("logging out after inactivity", () => {
+  const MIN = 60 * 1000;
+  it("is idle exactly when the limit has passed", () => {
+    expect(isIdle(0, 14 * MIN + 59_000)).toBe(false);
+    expect(isIdle(0, 15 * MIN)).toBe(true);
+    expect(isIdle(1000, 16 * MIN)).toBe(true);
+  });
+  it("uses 15 minutes, the lifetime of an access token", () => {
+    expect(IDLE_LOGOUT_MS).toBe(15 * MIN);
+    expect(IDLE_NOTICE).toContain("15 minutes");
+  });
+  it("activity moves the clock forward, and news from another tab never moves it backward", () => {
+    const clock = new ActivityClock(0);
+    expect(clock.idle(15 * MIN)).toBe(true);
+    clock.touch(10 * MIN);
+    expect(clock.idle(15 * MIN)).toBe(false);
+    clock.touch(5 * MIN); // an older message arriving late
+    expect(clock.lastActivity).toBe(10 * MIN);
+    expect(clock.idle(25 * MIN)).toBe(true);
   });
 });
