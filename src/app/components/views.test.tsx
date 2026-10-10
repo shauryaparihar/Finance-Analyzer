@@ -25,7 +25,7 @@ const render = (f: Forecast) => renderToStaticMarkup(<MemoryRouter><ForecastView
 describe("forecast screen", () => {
   it("shows the method, both scores, the improvement and the history length when the model won", () => {
     const html = render(completed());
-    for (const text of ["12,950.35", "ML model", "Lag-feature random forest", "-27.1%", "lower daily error than baseline", "361 days", "374.10", "272.80", "16.1%", "36.0%", "not financial advice"]) {
+    for (const text of ["12,950.35", "ML model", "Lag-feature random forest", "27.1% better", "smaller average daily error", "361 days", "374.10", "272.80", "16.1%", "36.0%", "not financial advice"]) {
       expect(html).toContain(text);
     }
     expect(html).toContain("smaller daily mistakes than the simple baseline");
@@ -37,8 +37,8 @@ describe("forecast screen", () => {
       backtest: { ...completed().backtest, model_vs_baseline_mae_improvement_pct: -8.4, selected: completed().backtest.baseline },
     }));
     expect(html).toContain("Baseline");
-    expect(html).toContain("+8.4%");
-    expect(html).toContain("higher daily error than baseline");
+    expect(html).toContain("8.4% worse");
+    expect(html).toContain("larger average daily error");
     expect(html).toContain("did <strong>not</strong> beat the simple baseline");
   });
 
@@ -54,6 +54,7 @@ describe("forecast screen", () => {
     const html = render(completed()).toLowerCase();
     expect(html).not.toContain("confidence interval");
     expect(html).toContain("no uncertainty range is shown");
+    expect(html).toContain("drifts towards your typical daily spending");
   });
 
   it("notes when the test used a shorter horizon than the forecast", () => {

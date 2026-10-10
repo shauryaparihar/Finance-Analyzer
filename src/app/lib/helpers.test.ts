@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { amount, dateTime, duration, percent, shortDate } from "./format";
-import { categoryOptions, checkReason, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
+import { amount, dateTime, duration, monthLabel, percent, shortDate } from "./format";
+import { categoryOptions, categorySource, checkReason, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
 import { hasResults, isActive, moduleRun, whyNoResult } from "./status";
 import type { ModuleStatus } from "../types";
 
 const row = (over: Partial<Parameters<typeof checkReason>[0]> = {}) => ({
-  category: "Groceries", predicted_category: "Groceries", review_required: false, prediction_confidence: 0.95, confirmed_category: null, ...over,
+  category: "Groceries", predicted_category: "Groceries", source_category: null, review_required: false, prediction_confidence: 0.95, confirmed_category: null, ...over,
 });
 
 describe("formatting", () => {
@@ -24,6 +24,9 @@ describe("formatting", () => {
     expect(duration(450)).toBe("450 ms");
     expect(duration(4031)).toBe("4.0 s");
     expect(duration(null)).toBe("-");
+    expect(monthLabel("2026-04")).toBe("April 2026");
+    expect(monthLabel(null)).toBe("-");
+    expect(monthLabel("not-a-month")).toBe("not-a-month");
   });
 });
 
@@ -40,11 +43,20 @@ describe("which rows to check", () => {
     expect(checkReason(row({ category: "Uncategorized", confirmed_category: "Rent" }))).toBeNull();
     expect(checkReason(row({ prediction_confidence: 0.2, confirmed_category: "Rent" }))).toBeNull();
   });
+  it("credits the file, not the model, when the file already had that category", () => {
+    const sameAsModel = row({ source_category: "Groceries" }); // the file said Groceries and the model agreed
+    expect(categorySource(sameAsModel)).toBe("file");
+    expect(usesModelGuess(sameAsModel)).toBe(false);
+    expect(checkReason(row({ source_category: "Groceries", prediction_confidence: 0.2 }))).toBeNull(); // model doubt is irrelevant
+    expect(categorySource(row())).toBe("model");
+    expect(categorySource(row({ confirmed_category: "Rent", source_category: "Groceries" }))).toBe("yours");
+    expect(categorySource(row({ category: "Uncategorized", predicted_category: "Uncategorized" }))).toBe("none");
+  });
   it("only blames the model when its guess is the category being used", () => {
     // the person's own file said "Mine"; the model's low-confidence guess for that row is irrelevant
-    expect(checkReason(row({ category: "Mine", predicted_category: "Shopping", prediction_confidence: 0.3 }))).toBeNull();
+    expect(checkReason(row({ category: "Mine", source_category: "Mine", predicted_category: "Shopping", prediction_confidence: 0.3 }))).toBeNull();
     expect(usesModelGuess(row())).toBe(true);
-    expect(usesModelGuess(row({ category: "Mine", predicted_category: "Shopping" }))).toBe(false);
+    expect(usesModelGuess(row({ category: "Mine", source_category: "Mine", predicted_category: "Shopping" }))).toBe(false);
     expect(usesModelGuess(row({ confirmed_category: "Rent" }))).toBe(false);
   });
   it("shows confidence as a whole-number percentage", () => {

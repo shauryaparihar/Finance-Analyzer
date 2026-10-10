@@ -291,6 +291,7 @@ def _transaction_out(t) -> TransactionOut:
         amount=float(t.amount),
         category=category,
         description=t.description,
+        source_category=t.source_category,
         predicted_category=t.predicted_category,
         prediction_confidence=t.prediction_confidence,
         confirmed_category=t.confirmed_category,

@@ -197,6 +197,7 @@ export interface TransactionRow {
   amount: number;
   category: string;
   description: string | null;
+  source_category: string | null;
   predicted_category: string | null;
   prediction_confidence: number | null;
   confirmed_category: string | null;

@@ -76,6 +76,7 @@ class TransactionOut(BaseModel):
     amount: float
     category: str
     description: Optional[str] = None
+    source_category: Optional[str] = None  # the category written in the uploaded file, if any
     predicted_category: Optional[str] = None
     prediction_confidence: Optional[float] = None
     confirmed_category: Optional[str] = None

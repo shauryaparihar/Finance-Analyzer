@@ -69,7 +69,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           </p>
         </form>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          A portfolio project, not a bank. Use test data; it is kept for as long as you keep the analysis.
+          This is a demo project, so please use practice data. Everything you upload stays until you delete that analysis.
         </p>
       </div>
     </div>

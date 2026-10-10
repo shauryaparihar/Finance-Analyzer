@@ -25,3 +25,10 @@ export function duration(ms: number | null): string {
   if (ms === null) return "-";
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`;
 }
+
+/** "2026-04" -> "April 2026" */
+export function monthLabel(yearMonth: string | null): string {
+  if (!yearMonth || !/^\d{4}-\d{2}$/.test(yearMonth)) return yearMonth ?? "-";
+  const date = new Date(`${yearMonth}-01T00:00:00`);
+  return Number.isNaN(date.getTime()) ? yearMonth : date.toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+}

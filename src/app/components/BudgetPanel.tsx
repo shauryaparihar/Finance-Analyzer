@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { deleteBudget, getBudgetRisk, listBudgets, saveBudget } from "../api";
 import { useResource } from "../hooks/useResource";
-import { amount, shortDate } from "../lib/format";
+import { amount, monthLabel, shortDate } from "../lib/format";
 import { RISK_LABELS } from "../lib/status";
 import type { RiskStatus } from "../types";
 import { Card, Disclaimer, ErrorNotice, Pill, SectionTitle, Tone } from "./common";
@@ -61,6 +61,9 @@ export function BudgetPanel({ uploadId, categoryChoices }: { uploadId: string; c
   return (
     <Card>
       <SectionTitle>Monthly budgets</SectionTitle>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Set a monthly limit for a category. &quot;This month&quot; means the month of the latest transaction in your file, so an older file shows an older month.
+      </p>
 
       <form onSubmit={submit} className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
@@ -122,9 +125,12 @@ export function BudgetPanel({ uploadId, categoryChoices }: { uploadId: string; c
         </div>
       )}
 
-      {risk.data && risk.data.as_of && (
+      {risk.data && risk.data.as_of && rows.length > 0 && (
         <div className="mt-4 space-y-1 text-xs text-muted-foreground">
-          <p>Month {risk.data.month}, as of {shortDate(risk.data.as_of)} ({risk.data.remaining_days} days left in the month). {risk.data.assumptions}</p>
+          <p>
+            Budget month: {monthLabel(risk.data.month)} (your latest transaction is on {shortDate(risk.data.as_of)}), {risk.data.remaining_days} day{risk.data.remaining_days === 1 ? "" : "s"} left in that month.
+          </p>
+          <p>{risk.data.assumptions}</p>
           {risk.data.totals && risk.data.totals.categories_at_risk > 0 && (
             <p className="text-[#FFA657]">{risk.data.totals.categories_at_risk} categor{risk.data.totals.categories_at_risk === 1 ? "y is" : "ies are"} already over, or projected to go over, the limit.</p>
           )}

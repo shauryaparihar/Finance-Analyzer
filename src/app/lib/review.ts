@@ -5,11 +5,24 @@ export const LOW_CONFIDENCE = 0.7;
 
 export const UNCATEGORIZED = "Uncategorized";
 
-type Reviewable = Pick<TransactionRow, "category" | "review_required" | "prediction_confidence" | "confirmed_category" | "predicted_category">;
+type Reviewable = Pick<
+  TransactionRow,
+  "category" | "review_required" | "prediction_confidence" | "confirmed_category" | "predicted_category" | "source_category"
+>;
 
-/** True when the category shown is the model's own guess (not the person's choice or a label from their file). */
+export type CategorySource = "yours" | "file" | "model" | "none";
+
+/** Where the category shown came from: the person's own choice, their uploaded file, the model, or nowhere yet. */
+export function categorySource(row: Reviewable): CategorySource {
+  if (row.confirmed_category) return "yours";
+  if (row.source_category) return "file";
+  if (row.predicted_category !== null && row.predicted_category === row.category && row.category !== UNCATEGORIZED) return "model";
+  return "none";
+}
+
+/** True only when the category shown is the model's own guess. A label in the file wins even if the model agrees. */
 export function usesModelGuess(row: Reviewable): boolean {
-  return !row.confirmed_category && row.predicted_category !== null && row.predicted_category === row.category;
+  return categorySource(row) === "model";
 }
 
 /** Why a row should be checked, or null if it needs no attention. */

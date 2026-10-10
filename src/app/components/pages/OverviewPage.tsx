@@ -74,7 +74,7 @@ function OverviewContent({ modules }: { modules: ModuleStatus[] }) {
         <KPICard label="Avg monthly spending" value={amount(s.avg_monthly_spending ?? 0)} />
         <KPICard
           label="Unusual to review" value={String(s.review_queue_size)}
-          hint={s.review_queue_size > 0 ? "see Unusual Transactions" : "nothing stood out"}
+          hint={s.review_queue_size > 0 ? "open the Unusual Transactions page" : "nothing stood out"}
           variant={s.review_queue_size > 0 ? "warning" : "default"}
         />
       </div>

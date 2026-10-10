@@ -80,7 +80,7 @@ In a separate terminal, start the React frontend:
 npm run dev
 ```
 
-Open http://localhost:5173, create an account on the Register page, then upload `data/sample_transactions.csv`.
+Open http://localhost:5173, create an account on the Register page, then upload a practice file from `data/`: `sample_transactions.csv` has categories filled in; `sample_descriptions_only.csv` has none, so the model categorizes it and the Category review screen has rows to check (regenerate it with `python scripts/generate_description_only_sample.py`).
 
 The application will be available at:
 - **Dashboard**: http://localhost:5173

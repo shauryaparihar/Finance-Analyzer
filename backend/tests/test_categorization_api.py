@@ -44,6 +44,8 @@ def test_effective_category_order_and_review_flag(client, db):
     assert [r["category"] for r in rows] == ["Groceries", "Mine", "Uncategorized"]
     assert [r["review_required"] for r in rows] == [False, False, True]
     assert rows[0]["prediction_confidence"] == 0.9
+    # where each category came from: the model for the first row, the uploaded file for the second
+    assert [r["source_category"] for r in rows] == [None, "Mine", None]
 
 
 def test_review_required_filter(client, db):
@@ -152,3 +154,18 @@ def test_the_category_list_is_unavailable_while_the_model_is_(client, monkeypatc
     monkeypatch.setattr(main.app.state, "categorizer", None, raising=False)
     response = client.get("/api/categories", headers=register_and_login(client))
     assert response.status_code == 503 and response.json()["error"]["code"] == "MODEL_UNAVAILABLE"
+
+
+def test_the_file_label_is_reported_even_when_the_model_predicted_the_same_category(client, db):
+    headers = register_and_login(client, "owner@example.com")
+    user = repo.get_user_by_email(db, "owner@example.com")
+    upload = repo.create_upload(db, user.id, "f.csv", uuid.uuid4().hex * 2, 1)
+    frame = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2025-01-01"]), "amount": [10.0], "description": ["apple store"],
+            "category": ["Shopping"], "predicted_category": ["Shopping"], "prediction_confidence": [0.98],
+        }
+    )
+    repo.store_transactions(db, user.id, upload.id, frame)
+    row = client.get(f"/api/uploads/{upload.id}/transactions", headers=headers).json()["transactions"][0]
+    assert row["category"] == "Shopping" and row["source_category"] == "Shopping" and row["predicted_category"] == "Shopping"

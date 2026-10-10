@@ -159,6 +159,10 @@ export function UploadPage() {
         <p className="mt-3 text-xs text-muted-foreground">
           Without a description a transaction stays &quot;Uncategorized&quot; for you to categorize. A category column from your file is kept as you wrote it.
         </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          No file handy? The project&apos;s <span className="font-mono">data</span> folder has two practice files: <span className="font-mono">sample_transactions.csv</span> (categories already filled in) and{" "}
+          <span className="font-mono">sample_descriptions_only.csv</span> (no categories, so the model categorizes it and the Category review screen has rows to check).
+        </p>
       </Card>
 
       <Card>

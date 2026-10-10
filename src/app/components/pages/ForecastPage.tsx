@@ -78,11 +78,11 @@ function CompletedForecast({ f }: { f: ForecastCompleted }) {
         <KPICard label={`Next ${f.forecast.days} days`} value={amount(f.forecast.total)} hint="estimated total spending" />
         <KPICard label="Method used" value={modelUsed ? "ML model" : "Baseline"} hint={f.method_label} />
         <KPICard
-          label="Model vs baseline" value={`${improvement >= 0 ? "-" : "+"}${Math.abs(improvement).toFixed(1)}%`}
-          hint={improvement >= 0 ? "lower daily error than baseline" : "higher daily error than baseline"}
+          label="Model vs baseline" value={`${Math.abs(improvement).toFixed(1)}% ${improvement >= 0 ? "better" : "worse"}`}
+          hint={improvement >= 0 ? "smaller average daily error" : "larger average daily error"}
           variant={modelUsed ? "default" : "warning"}
         />
-        <KPICard label="History used" value={`${f.history_days} days`} hint={`needs at least ${f.min_history_days}`} />
+        <KPICard label="History used" value={`${f.history_days} days`} hint={`minimum needed: ${f.min_history_days} days`} />
       </div>
 
       <Notice tone={modelUsed ? "good" : "warn"}>
@@ -106,7 +106,9 @@ function CompletedForecast({ f }: { f: ForecastCompleted }) {
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">No uncertainty range is shown because none is estimated; treat single days as rough.</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          No uncertainty range is shown because none is estimated. Treat single days as rough: further into the future, the forecast drifts towards your typical daily spending.
+        </p>
       </Card>
 
       <Card>
