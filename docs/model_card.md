@@ -100,6 +100,8 @@ A probe of 2,000 generated nonsense descriptions (random letters and numbers, wi
 
 **What it is:** a short ranked list of expenses that stand out from the person's own spending, so they can look at the handful that matter. **It is not fraud detection**, and "unusual" does not mean "wrong": a holiday, a new laptop or an annual bill will all rank high.
 
+**Repeating charges are not queued.** An expense whose description appears at least 3 times, with an amount within 15% of that description's usual amount, is treated as the same charge again (monthly rent, a subscription) and is never put in the review queue, even when its category has too few rows to judge it. A price change on the same description is not exempt. Limitation: the match is on the exact description text (case and spacing ignored), so a merchant whose description changes every month (for example an order number) is not recognised as repeating.
+
 **How it works (nothing is trained on uploaded data beyond robust statistics):**
 - Each expense is compared with the typical amount for its own category, using the median and the median absolute deviation of the log amount (robust to the very outliers we look for, and suited to right-skewed spending). Categories with fewer than 8 expenses are compared with all spending.
 - The score is that deviation, capped at 6 standard deviations and scaled to 0-1; ties among capped rows are ordered by the uncapped deviation.
