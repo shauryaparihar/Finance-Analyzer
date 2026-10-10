@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Path, Query, Request, Response, Up
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.api.deps import get_current_user_id
+from backend.api.deps import get_current_user_id, get_writer_user_id
 from backend.api.errors import AppError
 from backend.api.schemas import (
     AnomaliesOut,
@@ -77,7 +77,7 @@ def create_upload(
     file: UploadFile = File(...),
     amount_convention: str = Query("auto", description="auto | expenses_positive | expenses_negative"),
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_writer_user_id),
     categorizer=Depends(get_categorizer),
     runner=Depends(get_job_runner),
 ):
@@ -308,7 +308,7 @@ def correct_transaction_category(
     transaction_id: int,
     body: CategoryUpdate,
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_writer_user_id),
 ):
     """Set your own category for a transaction. It overrides the model's prediction in every summary."""
     category = " ".join(body.category.split())
@@ -329,7 +329,7 @@ def correct_transaction_category(
 
 
 @router.delete("/uploads/{upload_id}", status_code=204)
-def delete_upload(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_current_user_id)):
+def delete_upload(upload_id: uuid.UUID, db: Session = Depends(get_db), user_id: uuid.UUID = Depends(get_writer_user_id)):
     if not repo.delete_upload(db, user_id, upload_id):
         raise _upload_not_found()
 
@@ -339,7 +339,7 @@ def review_unusual_transaction(
     transaction_id: int,
     body: AnomalyReviewUpdate,
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_writer_user_id),
 ):
     """Confirm (worth following up) or dismiss (expected) a transaction in the review queue."""
     txn = repo.get_owned_transaction(db, user_id, transaction_id)
@@ -383,7 +383,7 @@ def put_budget(
     body: BudgetIn,
     category: str = Path(min_length=1, max_length=200),
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_writer_user_id),
 ):
     """Create or replace the monthly limit for one category."""
     return _budget_out(repo.upsert_budget(db, user_id, _clean_budget_category(category), body.monthly_limit))
@@ -393,7 +393,7 @@ def put_budget(
 def remove_budget(
     category: str = Path(min_length=1, max_length=200),
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_id),
+    user_id: uuid.UUID = Depends(get_writer_user_id),
 ):
     if not repo.delete_budget(db, user_id, _clean_budget_category(category)):
         raise AppError(404, "NOT_FOUND", "Budget not found.")

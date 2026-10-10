@@ -21,6 +21,7 @@ services:
       ENVIRONMENT: development
       DATABASE_URL: postgresql+psycopg://finsight:finsight@db:5432/finsight
       FRONTEND_URL: http://localhost:5173
+      DEMO_ENABLED: "true"
     ports:
       - "8000:8000"
     depends_on:

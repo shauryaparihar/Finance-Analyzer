@@ -3,6 +3,7 @@ import { useNavigate } from "react-router";
 import { FileText, Loader2, Trash2, Upload } from "lucide-react";
 import { deleteUpload, listUploads, uploadFile } from "../../api";
 import { useAppContext } from "../../context/AppContext";
+import { useAuth } from "../../context/AuthContext";
 import { useResource } from "../../hooks/useResource";
 import { dateTime } from "../../lib/format";
 import { UPLOAD_STATUS_LABELS, isActive } from "../../lib/status";
@@ -25,6 +26,7 @@ const STATUS_TONE: Record<UploadStatus, Tone> = { queued: "info", processing: "i
 export function UploadPage() {
   const navigate = useNavigate();
   const { uploadId, setUploadId } = useAppContext();
+  const readOnly = useAuth().user?.role === "demo";
   const fileInput = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -36,6 +38,10 @@ export function UploadPage() {
 
   const history = useResource(listUploads, []);
   const anyActive = history.data?.some((u) => isActive(u.status)) ?? false;
+  // The guest has exactly one analysis (the sample), so open it for them instead of asking them to find the Open button.
+  useEffect(() => {
+    if (readOnly && !uploadId && history.data && history.data.length > 0) setUploadId(history.data[0].id);
+  }, [readOnly, uploadId, history.data, setUploadId]);
   useEffect(() => {
     if (!anyActive) return;
     const timer = setTimeout(history.reload, 3000); // keep the list fresh while something is running
@@ -84,6 +90,9 @@ export function UploadPage() {
     <div className="mx-auto max-w-4xl space-y-8 p-4 sm:p-8">
       <PageHeader title="Upload transactions" subtitle="Import a CSV export of your transactions to see spending, budget risk and anything unusual." />
 
+      {readOnly ? (
+        <Notice tone="info">The demo account is read-only, so uploading is switched off. Open the sample analysis below, or log out and create your own account to upload a file.</Notice>
+      ) : (
       <Card>
         <div
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -132,6 +141,7 @@ export function UploadPage() {
           )}
         </div>
       </Card>
+      )}
 
       <Card>
         <SectionTitle>Expected CSV columns</SectionTitle>
@@ -192,9 +202,9 @@ export function UploadPage() {
                     </td>
                     <td className="whitespace-nowrap py-3 text-right">
                       <Button variant="outline" size="sm" onClick={() => { setUploadId(u.id); navigate("/overview"); }}>Open</Button>
-                      <Button variant="ghost" size="sm" aria-label={`Delete ${u.filename}`} onClick={() => { setDeleteError(null); setToDelete(u); }}>
+                      {!readOnly && <Button variant="ghost" size="sm" aria-label={`Delete ${u.filename}`} onClick={() => { setDeleteError(null); setToDelete(u); }}>
                         <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      </Button>}
                     </td>
                   </tr>
                 ))}

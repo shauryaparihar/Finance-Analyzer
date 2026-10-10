@@ -17,6 +17,7 @@ from backend.core.database import get_db
 from backend.core.logging import log_event
 from backend.core.models import User
 from backend.core.security import create_access_token, hash_password, verify_password
+from backend.services.demo import ensure_demo_analysis
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 logger = logging.getLogger("finsight.auth")
@@ -56,12 +57,12 @@ def _require_same_site_request(request: Request) -> None:
 
 
 def _user_out(user: User) -> UserOut:
-    return UserOut(id=user.id, email=user.email, created_at=user.created_at)
+    return UserOut(id=user.id, email=user.email, created_at=user.created_at, role=user.role)
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
-    if repo.get_user_by_email(db, body.email) is not None:
+    if body.email.strip().lower() == repo.DEMO_EMAIL or repo.get_user_by_email(db, body.email) is not None:
         raise AppError(409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists.")
     try:
         user = repo.create_user(db, body.email, hash_password(body.password))
@@ -83,6 +84,26 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     return TokenOut(
         access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60
     )
+
+
+@router.post("/demo", response_model=TokenOut)
+def demo_login(request: Request, response: Response, db: Session = Depends(get_db)):
+    """One-click read-only guest session, when the deployment enables it. There is no password to guess:
+    the demo account's stored hash can never match one, so this endpoint is the only way in."""
+    if not settings.demo_enabled:
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    _require_same_site_request(request)
+    user = repo.get_or_create_demo_user(db)
+    if not user.is_active or user.role != "demo":
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    if ensure_demo_analysis(db, user):
+        runner = getattr(request.app.state, "job_runner", None)
+        if runner is not None:
+            runner.wake()
+    refresh_tokens.purge_expired(db)
+    _set_refresh_cookie(response, refresh_tokens.issue(db, user.id))
+    log_event(logger, logging.INFO, "demo_login")
+    return TokenOut(access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60)
 
 
 _REFRESH_FAILURES = {

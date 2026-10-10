@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from backend.api.admin import router as admin_router
 from backend.api.auth import router as auth_router
 from backend.api.errors import AppError, register_error_handling
 from backend.api.routes import router
@@ -79,6 +80,7 @@ app.add_middleware(
 register_error_handling(app)
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(router)
 
 
