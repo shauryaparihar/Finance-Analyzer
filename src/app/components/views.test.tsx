@@ -2,6 +2,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { describe, expect, it } from "vitest";
 import type { Forecast, ForecastCompleted, ModuleStatus } from "../types";
+import { AuthForm } from "./AuthForm";
+import { CookieNotice } from "./common";
 import { KPICard } from "./KPICard";
 import { ModuleProgress } from "./ModuleProgress";
 import { ForecastView } from "./pages/ForecastPage";
@@ -87,5 +89,47 @@ describe("KPI card", () => {
     expect(html).toContain("Total spending");
     expect(html).toContain("1,000.00");
     expect(html).toContain("12 transactions");
+  });
+});
+
+describe("login form", () => {
+  const noop = () => undefined;
+  const form = (over: Partial<Parameters<typeof AuthForm>[0]> = {}) =>
+    renderToStaticMarkup(
+      <AuthForm mode="register" email="" password="" errors={{}} busy={false} onEmail={noop} onPassword={noop} onBlurField={noop} onSubmit={noop} {...over} />,
+    );
+
+  it("turns off the browser's own pop-up messages so the app's styled ones are used", () => {
+    expect(form()).toContain("novalidate");
+  });
+  it("shows the password hint on the page, always, so no message can cover it", () => {
+    expect(form()).toContain("At least 8 characters.");
+    expect(form({ errors: { password: "Use at least 8 characters (you have 3)." } })).toContain("At least 8 characters.");
+  });
+  it("shows an error under the field, in the destructive colour, linked to the field for screen readers", () => {
+    const html = form({ errors: { password: "Use at least 8 characters (you have 3)." } });
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("Use at least 8 characters (you have 3).");
+    expect(html).toContain("text-destructive");
+    expect(html).toContain('aria-invalid="true"');
+    expect(html).toContain('aria-describedby="password-error password-hint"');
+  });
+  it("marks only the field that has a problem", () => {
+    const html = form({ errors: { email: "Enter your email address." } });
+    expect(html.match(/aria-invalid="true"/g)).toHaveLength(1);
+    expect(html).toContain("Enter your email address.");
+  });
+  it("has no error markup when everything is fine, and the login version has no length hint", () => {
+    expect(form()).not.toContain('role="alert"');
+    expect(form({ mode: "login" })).not.toContain("At least 8 characters.");
+  });
+});
+
+describe("cookie warning", () => {
+  it("tells the person plainly what will happen and what to do", () => {
+    const html = renderToStaticMarkup(<CookieNotice />);
+    expect(html).toContain("did not keep the login cookie");
+    expect(html).toContain("logged out when you reload");
+    expect(html).toContain("same web address");
   });
 });

@@ -1,6 +1,7 @@
 import { Link, NavLink, Outlet } from "react-router";
 import { AlertTriangle, BarChart3, LogOut, Tags, TrendingUp, Upload } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { CookieNotice } from "./common";
 import { cn } from "./ui/utils";
 
 const navItems = [
@@ -21,7 +22,7 @@ function Brand() {
 }
 
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, cookieWarning } = useAuth();
 
   return (
     <div className="flex min-h-screen flex-col bg-background md:h-screen md:flex-row md:overflow-hidden">
@@ -88,6 +89,7 @@ export function Layout() {
       </header>
 
       <main className="min-w-0 flex-1 md:overflow-auto">
+        {cookieWarning && <div className="px-4 pt-4 sm:px-8 sm:pt-6"><CookieNotice /></div>}
         <Outlet />
       </main>
     </div>

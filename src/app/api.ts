@@ -98,7 +98,7 @@ export function refreshSession(): Promise<RefreshOutcome> {
   return refreshing;
 }
 
-async function attemptRefresh(attempt: number): Promise<RefreshOutcome> {
+async function attemptRefresh(attempt: number, clearOnDenied = true): Promise<RefreshOutcome> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE}/auth/refresh`, { method: "POST", headers: { [CSRF_HEADER]: "1" }, credentials: "same-origin" });
@@ -115,11 +115,22 @@ async function attemptRefresh(attempt: number): Promise<RefreshOutcome> {
     if (body?.error.code === "REFRESH_RACE") {
       // another tab renewed the session a moment ago and its new cookie is already in the browser: just try again
       await new Promise((resolve) => setTimeout(resolve, RACE_RETRY_MS));
-      return attemptRefresh(1);
+      return attemptRefresh(1, clearOnDenied);
     }
   }
-  tokenStore.clear();
+  if (clearOnDenied) tokenStore.clear();
   return "denied";
+}
+
+/**
+ * Right after logging in, check that the browser really keeps and returns the refresh cookie. If the site is set up
+ * so that the cookie never comes back (for example the website and its API are on different addresses), the person
+ * would be logged out on every reload; this lets the app say so instead of failing mysteriously.
+ * Returns false only when the server answered but did not recognise the cookie. Never ends the current session.
+ */
+export async function verifySessionCookie(): Promise<boolean> {
+  const outcome = await (refreshing ?? attemptRefresh(0, false));
+  return outcome !== "denied";
 }
 
 async function request<T>(path: string, options: RequestOptions = {}, alreadyRetried = false): Promise<T> {

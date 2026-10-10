@@ -46,10 +46,12 @@ def _require_same_site_request(request: Request) -> None:
     """Defence in depth for the two cookie-authenticated endpoints. SameSite=Strict already keeps the cookie off
     cross-site requests; additionally require a custom header (which a cross-site page cannot add without a CORS
     preflight we do not allow) and reject a browser Origin we do not know."""
-    if request.headers.get(CSRF_HEADER) != "1":
-        raise AppError(403, "CSRF_REJECTED", "This request was not accepted.")
     origin = request.headers.get("origin")
-    if origin and origin.rstrip("/") not in cors_origins():
+    has_header = request.headers.get(CSRF_HEADER) == "1"
+    origin_known = not origin or origin.rstrip("/") in cors_origins()
+    if not has_header or not origin_known:
+        # Names the reason for whoever runs the site (for example "the Vercel domain is not in FRONTEND_URL").
+        log_event(logger, logging.WARNING, "csrf_rejected", path=request.url.path, header_present=has_header, origin=origin, origin_known=origin_known)
         raise AppError(403, "CSRF_REJECTED", "This request was not accepted.")
 
 
@@ -101,6 +103,10 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         refresh_tokens.revoke(db, result.new_token)  # the account was disabled: end this session as well
         result.outcome = "invalid"
     if result.outcome != "ok":
+        log_event(
+            logger, logging.INFO, "refresh_rejected",
+            reason=result.outcome, cookie_present=bool(request.cookies.get(REFRESH_COOKIE)), origin=request.headers.get("origin"),
+        )
         if result.outcome == "reuse":
             log_event(logger, logging.WARNING, "refresh_token_reuse_detected", user_id=str(result.user_id), family_id=str(result.family_id))
         code, message = _REFRESH_FAILURES[result.outcome]

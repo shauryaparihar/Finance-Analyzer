@@ -9,6 +9,8 @@ interface AuthValue {
   status: AuthStatus;
   /** A message to show on the login page, for example "Your session expired". */
   notice: string | null;
+  /** True when the browser did not keep the login cookie, so a page reload will log the person out. */
+  cookieWarning: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -23,6 +25,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // still represents a valid session.
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [notice, setNotice] = useState<string | null>(null);
+  const [cookieWarning, setCookieWarning] = useState(false);
 
   useEffect(() => {
     // Any request that comes back 401 (expired or invalid token) ends the session in one place.
@@ -66,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setStatus("authenticated");
     setNotice(null);
+    void api.verifySessionCookie().then((keptCookie) => setCookieWarning(!keptCookie));
   }, []);
 
   const value = useMemo<AuthValue>(
@@ -73,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       status,
       notice,
+      cookieWarning,
       login: signIn,
       register: async (email, password) => {
         await api.register(email, password);
@@ -84,10 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setStatus("anonymous");
         setNotice(null);
+        setCookieWarning(false);
       },
       clearNotice: () => setNotice(null),
     }),
-    [user, status, notice, signIn],
+    [user, status, notice, cookieWarning, signIn],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -69,3 +69,13 @@ def test_cors_allows_only_the_exact_frontend_in_production():
     assert cors_origins(Settings(**GOOD_PROD)) == ["https://app.example.com"]
     dev = cors_origins(Settings(environment="development"))
     assert "*" not in dev and "http://localhost:5173" in dev
+
+
+def test_extra_frontend_origins_are_allowed_but_only_as_exact_https_origins_in_production():
+    extra = Settings(**{**GOOD_PROD, "extra_frontend_origins": "https://myfinance.example.com/, https://preview.example.com"})
+    assert cors_origins(extra) == ["https://app.example.com", "https://myfinance.example.com", "https://preview.example.com"]
+    validate_runtime_settings(extra)
+    for bad in ("http://myfinance.example.com", "https://*.example.com", "https://localhost:3000"):
+        with pytest.raises(RuntimeError):
+            validate_runtime_settings(Settings(**{**GOOD_PROD, "extra_frontend_origins": bad}))
+    assert "http://127.0.0.1:9999" in cors_origins(Settings(environment="development", extra_frontend_origins="http://127.0.0.1:9999"))

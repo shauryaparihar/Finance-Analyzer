@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     environment: str = "development"
     database_url: str = "postgresql+psycopg://finsight:finsight@localhost:5432/finsight"
     frontend_url: str = "http://localhost:5173"
+    # More exact origins allowed to call the cookie endpoints (comma-separated), e.g. a custom domain. No wildcards.
+    extra_frontend_origins: str = ""
 
     # Authentication. In production JWT_SECRET must be set to a long random value (see validate_runtime_settings).
     jwt_secret: str = ""
@@ -89,9 +91,9 @@ def validate_runtime_settings(current: Settings = settings) -> None:
         raise RuntimeError("JWT_SECRET must be set to a random value of at least 32 characters in production")
     if not cookie_secure_enabled(current):
         raise RuntimeError("COOKIE_SECURE must not be disabled in production: the refresh cookie must be Secure")
-    origin = current.frontend_url
-    if not origin.startswith("https://") or "*" in origin or "localhost" in origin:
-        raise RuntimeError("FRONTEND_URL must be the exact https:// origin of the frontend in production")
+    for origin in [current.frontend_url, *_extra_origins(current)]:
+        if not origin.startswith("https://") or "*" in origin or "localhost" in origin:
+            raise RuntimeError("FRONTEND_URL and EXTRA_FRONTEND_ORIGINS must be exact https:// origins in production")
 
 
 def cookie_secure_enabled(current: Settings = settings) -> bool:
@@ -102,9 +104,13 @@ def log_exception_messages(current: Settings = settings) -> bool:
     return current.log_exception_messages
 
 
+def _extra_origins(current: Settings) -> list[str]:
+    return [o.strip().rstrip("/") for o in current.extra_frontend_origins.split(",") if o.strip()]
+
+
 def cors_origins(current: Settings = settings) -> list[str]:
-    """Exact allowed browser origins. Production allows only the configured frontend."""
-    origins = [current.frontend_url.rstrip("/")]
+    """Exact allowed browser origins. Production allows only the configured frontend (and any explicit extras)."""
+    origins = [current.frontend_url.rstrip("/"), *_extra_origins(current)]
     if not is_production(current):
         origins += ["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"]
     return sorted(set(origins))

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError, RACE_RETRY_MS, correctCategory, deleteBudget, friendlyMessage, getMe, getTransactions, login, logout,
-  refreshSession, saveBudget, setUnauthorizedHandler, tokenStore, uploadFile,
+  refreshSession, saveBudget, setUnauthorizedHandler, tokenStore, uploadFile, verifySessionCookie,
 } from "./api";
 
 function memoryStorage(): Storage {
@@ -206,6 +206,25 @@ describe("refreshing the session", () => {
     await vi.advanceTimersByTimeAsync(RACE_RETRY_MS * 3);
     await expect(outcome).resolves.toBe("denied");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("checking that the browser keeps the login cookie", () => {
+  it("passes when the cookie comes back, and stores the renewed token", async () => {
+    fetchMock.mockResolvedValue(reply(200, tokenBody("renewed")));
+    await expect(verifySessionCookie()).resolves.toBe(true);
+    expect(tokenStore.get()).toBe("renewed");
+  });
+  it("reports false, but does NOT end the current session, when the server never sees the cookie", async () => {
+    tokenStore.set("just-logged-in");
+    fetchMock.mockResolvedValue(reply(401, errorBody("REFRESH_INVALID", "Please log in again.")));
+    await expect(verifySessionCookie()).resolves.toBe(false);
+    expect(tokenStore.get()).toBe("just-logged-in");
+    expect(unauthorized).not.toHaveBeenCalled();
+  });
+  it("does not raise a false alarm when the server simply cannot be reached", async () => {
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(verifySessionCookie()).resolves.toBe(true);
   });
 });
 

@@ -185,7 +185,8 @@ npm run build
 
 - Passwords are stored as Argon2 hashes. Logging in returns a short-lived (15 minute) **access token** that the website keeps **in memory only**, plus a **refresh token** in a `HttpOnly; SameSite=Strict` cookie (`Secure` in production) that page scripts cannot read.
 - The refresh token **rotates** each time it is used and is stored only as a hash. If an already-used token is presented again, the whole login session is revoked.
-- The two cookie endpoints (`/api/auth/refresh`, `/api/auth/logout`) also require a custom header and a known origin. The website must reach the API on the same origin (the Vite dev proxy, or the Vercel rewrite in production) so the browser sends the cookie.
+- The two cookie endpoints (`/api/auth/refresh`, `/api/auth/logout`) also require a custom header and a known origin (`FRONTEND_URL`, plus any `EXTRA_FRONTEND_ORIGINS`). The website must reach the API on the same origin (the Vite dev proxy, or the Vercel rewrite in production) so the browser sends the cookie.
+- After deploying, check the real site: `python scripts/check_cookie_flow.py https://your-site --check-replay`. It verifies the cookie reaches the browser through the rewrite, rotates, is refused for unknown origins, and is revoked on logout, and explains any failure. If the cookie ever does not stick, the app shows a warning after login.
 
 ## Operations
 

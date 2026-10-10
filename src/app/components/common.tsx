@@ -103,3 +103,13 @@ export function EmptyState({ title, children, linkTo, linkLabel }: { title: stri
 export function Disclaimer({ children }: { children: ReactNode }) {
   return <p className="mt-6 text-xs text-muted-foreground">{children}</p>;
 }
+
+/** Shown when the browser did not keep the login cookie: a reload will log the person out. */
+export function CookieNotice() {
+  return (
+    <Notice tone="warn">
+      <strong>Your browser did not keep the login cookie</strong>, so you will be logged out when you reload this page or after about 15 minutes.
+      If you run this site yourself, serve the website and its API from the same web address (see &quot;Login security&quot; in the README).
+    </Notice>
+  );
+}

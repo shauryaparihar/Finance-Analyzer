@@ -242,3 +242,16 @@ def test_refresh_tokens_and_cookies_never_reach_the_logs(client, session, caplog
     assert "refresh_token_rotated" in text_
     for secret in (first, second, REFRESH_COOKIE):
         assert secret not in text_
+
+
+def test_a_rejected_refresh_is_logged_with_its_reason_but_without_any_secret(client, session, caplog):
+    caplog.set_level(logging.INFO)
+    client.cookies.clear()
+    client.post("/api/auth/refresh", headers=CSRF)  # no cookie at all, like a browser that did not keep it
+    client.post("/api/auth/refresh", headers={**CSRF, "Origin": "https://evil.example"})
+    entries = [json.loads(JsonFormatter().format(r)) for r in caplog.records if r.name == "finsight.auth"]
+    rejected = [e for e in entries if e["event"] == "refresh_rejected"]
+    assert rejected and rejected[0]["reason"] == "invalid" and rejected[0]["cookie_present"] is False
+    csrf = [e for e in entries if e["event"] == "csrf_rejected"]
+    assert csrf and csrf[0]["origin"] == "https://evil.example" and csrf[0]["origin_known"] is False
+    assert PASSWORD not in json.dumps(entries)
