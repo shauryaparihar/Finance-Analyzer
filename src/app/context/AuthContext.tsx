@@ -19,7 +19,9 @@ const AuthContext = createContext<AuthValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [status, setStatus] = useState<AuthStatus>(() => (api.tokenStore.get() ? "loading" : "anonymous"));
+  // After a page load there is no access token in memory, so we always ask the server whether the refresh cookie
+  // still represents a valid session.
+  const [status, setStatus] = useState<AuthStatus>("loading");
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -29,17 +31,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setStatus("anonymous");
       setNotice(reason === "expired" ? "Your session expired. Please log in again." : "Please log in to continue.");
     });
-    if (api.tokenStore.get()) {
-      // After a page refresh the token is still in this tab's sessionStorage: confirm it is still valid.
-      api
-        .getMe()
-        .then((me) => {
+    let cancelled = false;
+    void (async () => {
+      const outcome = await api.refreshSession(); // silent login from the HttpOnly cookie
+      if (cancelled) return;
+      if (outcome === "ok") {
+        try {
+          const me = await api.getMe();
+          if (cancelled) return;
           setUser(me);
           setStatus("authenticated");
-        })
-        .catch(() => setStatus("anonymous")); // a 401 has already set the notice
-    }
-    return () => api.setUnauthorizedHandler(null);
+          return;
+        } catch {
+          /* fall through to anonymous */
+        }
+      }
+      setStatus("anonymous");
+      if (outcome === "unreachable") setNotice("Cannot reach the server. Check your connection and try again.");
+    })();
+    return () => {
+      cancelled = true;
+      api.setUnauthorizedHandler(null);
+    };
   }, []);
 
   const signIn = useCallback(async (email: string, password: string) => {
@@ -66,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await signIn(email, password);
       },
       logout: () => {
+        void api.logout().catch(() => undefined); // revoke the session on the server (best effort)
         api.tokenStore.clear();
         setUser(null);
         setStatus("anonymous");

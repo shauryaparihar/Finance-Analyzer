@@ -181,6 +181,12 @@ npm test            # API client, helpers, rendered screens, copy rules
 npm run build
 ```
 
+## Login security
+
+- Passwords are stored as Argon2 hashes. Logging in returns a short-lived (15 minute) **access token** that the website keeps **in memory only**, plus a **refresh token** in a `HttpOnly; SameSite=Strict` cookie (`Secure` in production) that page scripts cannot read.
+- The refresh token **rotates** each time it is used and is stored only as a hash. If an already-used token is presented again, the whole login session is revoked.
+- The two cookie endpoints (`/api/auth/refresh`, `/api/auth/logout`) also require a custom header and a known origin. The website must reach the API on the same origin (the Vite dev proxy, or the Vercel rewrite in production) so the browser sends the cookie.
+
 ## Operations
 
 - Logs are one JSON object per line on stdout, including the server and migration startup lines (start the server with `--log-config backend/logging_config.json --no-access-log`, as the Dockerfile, Compose file, Procfile and `render.yaml` do) (event, request id, upload id, module, duration, status). Transaction text, passwords and tokens are never logged.

@@ -23,7 +23,7 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 SENSITIVE_FIELDS = frozenset(
     {
         "password", "passwd", "token", "access_token", "authorization", "cookie", "secret", "jwt_secret",
-        "database_url", "description", "descriptions", "text", "rows", "row", "body", "email",
+        "database_url", "description", "descriptions", "text", "rows", "row", "body", "email", "refresh_token", "set-cookie",
     }
 )
 _REDACTIONS = [

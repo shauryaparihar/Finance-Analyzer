@@ -23,7 +23,11 @@ class Settings(BaseSettings):
     # Authentication. In production JWT_SECRET must be set to a long random value (see validate_runtime_settings).
     jwt_secret: str = ""
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 30
+    access_token_expire_minutes: int = 15  # short: the long-lived credential is the refresh cookie, not this token
+    refresh_token_days: int = 7  # each rotated refresh token lasts this long ...
+    refresh_family_max_days: int = 30  # ... but a login session can never be extended past this
+    refresh_grace_seconds: int = 10  # a just-rotated token presented again within this window is a race, not theft
+    cookie_secure: bool | None = None  # None: Secure cookies in production, plain in local development
 
     # Analysis jobs and logging
     analysis_workers: int = 2  # analyses that may run at once in this process
@@ -83,9 +87,15 @@ def validate_runtime_settings(current: Settings = settings) -> None:
     secret = current.jwt_secret
     if not secret or secret == DEV_JWT_SECRET or len(secret) < 32:
         raise RuntimeError("JWT_SECRET must be set to a random value of at least 32 characters in production")
+    if not cookie_secure_enabled(current):
+        raise RuntimeError("COOKIE_SECURE must not be disabled in production: the refresh cookie must be Secure")
     origin = current.frontend_url
     if not origin.startswith("https://") or "*" in origin or "localhost" in origin:
         raise RuntimeError("FRONTEND_URL must be the exact https:// origin of the frontend in production")
+
+
+def cookie_secure_enabled(current: Settings = settings) -> bool:
+    return is_production(current) if current.cookie_secure is None else current.cookie_secure
 
 
 def log_exception_messages(current: Settings = settings) -> bool:

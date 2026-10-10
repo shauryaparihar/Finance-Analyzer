@@ -1,20 +1,56 @@
 """
 Registration, login and "who am I" endpoints.
 """
-from fastapi import APIRouter, Depends
+import logging
+
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.api.deps import get_current_user
 from backend.api.errors import AppError
 from backend.api.schemas import LoginRequest, RegisterRequest, TokenOut, UserOut
+from backend.core import refresh_tokens
 from backend.core import repository as repo
-from backend.core.config import settings
+from backend.core.config import cookie_secure_enabled, cors_origins, settings
 from backend.core.database import get_db
+from backend.core.logging import log_event
 from backend.core.models import User
 from backend.core.security import create_access_token, hash_password, verify_password
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+logger = logging.getLogger("finsight.auth")
+
+REFRESH_COOKIE = "finsight_refresh"
+REFRESH_COOKIE_PATH = "/api/auth"  # the browser sends this cookie only to the auth endpoints, never with data requests
+CSRF_HEADER = "X-FinSight-Request"
+
+
+def _set_refresh_cookie(response: Response, raw_token: str) -> None:
+    response.set_cookie(
+        REFRESH_COOKIE,
+        raw_token,
+        max_age=settings.refresh_token_days * 24 * 3600,
+        path=REFRESH_COOKIE_PATH,
+        httponly=True,  # page scripts cannot read it, so injected code cannot steal it
+        secure=cookie_secure_enabled(),
+        samesite="strict",  # never sent on cross-site requests
+    )
+
+
+def _clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH, httponly=True, secure=cookie_secure_enabled(), samesite="strict")
+
+
+def _require_same_site_request(request: Request) -> None:
+    """Defence in depth for the two cookie-authenticated endpoints. SameSite=Strict already keeps the cookie off
+    cross-site requests; additionally require a custom header (which a cross-site page cannot add without a CORS
+    preflight we do not allow) and reject a browser Origin we do not know."""
+    if request.headers.get(CSRF_HEADER) != "1":
+        raise AppError(403, "CSRF_REJECTED", "This request was not accepted.")
+    origin = request.headers.get("origin")
+    if origin and origin.rstrip("/") not in cors_origins():
+        raise AppError(403, "CSRF_REJECTED", "This request was not accepted.")
 
 
 def _user_out(user: User) -> UserOut:
@@ -34,15 +70,60 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenOut)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(body: LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = repo.get_user_by_email(db, body.email)
     password_ok = verify_password(body.password, user.password_hash if user else None)
     if user is None or not password_ok or not user.is_active:
         # Same answer for "unknown email" and "wrong password" so the response does not reveal which emails exist.
         raise AppError(401, "INVALID_CREDENTIALS", "Incorrect email or password.", headers={"WWW-Authenticate": "Bearer"})
+    refresh_tokens.purge_expired(db)
+    _set_refresh_cookie(response, refresh_tokens.issue(db, user.id))  # a new login session
     return TokenOut(
         access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60
     )
+
+
+_REFRESH_FAILURES = {
+    "invalid": ("REFRESH_INVALID", "Please log in again."),
+    "expired": ("REFRESH_EXPIRED", "Your session expired. Please log in again."),
+    "reuse": ("REFRESH_REUSED", "Your session ended for security reasons. Please log in again."),
+    "race": ("REFRESH_RACE", "Another tab just renewed the session. Please retry."),
+}
+
+
+@router.post("/refresh", response_model=TokenOut)
+def refresh(request: Request, response: Response, db: Session = Depends(get_db)):
+    """Exchange the refresh cookie for a new short-lived access token (and a new refresh cookie)."""
+    _require_same_site_request(request)
+    result = refresh_tokens.rotate(db, request.cookies.get(REFRESH_COOKIE))
+    user = repo.get_user(db, result.user_id) if result.outcome == "ok" and result.user_id else None
+    if result.outcome == "ok" and (user is None or not user.is_active):
+        refresh_tokens.revoke(db, result.new_token)  # the account was disabled: end this session as well
+        result.outcome = "invalid"
+    if result.outcome != "ok":
+        if result.outcome == "reuse":
+            log_event(logger, logging.WARNING, "refresh_token_reuse_detected", user_id=str(result.user_id), family_id=str(result.family_id))
+        code, message = _REFRESH_FAILURES[result.outcome]
+        headers = {} if result.outcome == "race" else {"Set-Cookie": _expired_cookie_header()}
+        raise AppError(401, code, message, headers=headers)
+    _set_refresh_cookie(response, result.new_token)
+    log_event(logger, logging.INFO, "refresh_token_rotated", user_id=str(result.user_id), family_id=str(result.family_id))
+    return TokenOut(access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60)
+
+
+@router.post("/logout", status_code=204)
+def logout(request: Request, response: Response, db: Session = Depends(get_db)):
+    """End this login session everywhere: the refresh token family is revoked and the cookie is removed."""
+    _require_same_site_request(request)
+    refresh_tokens.revoke(db, request.cookies.get(REFRESH_COOKIE))
+    _clear_refresh_cookie(response)
+    response.status_code = 204
+    return response
+
+
+def _expired_cookie_header() -> str:
+    secure = "; Secure" if cookie_secure_enabled() else ""
+    return f"{REFRESH_COOKIE}=\"\"; Max-Age=0; Path={REFRESH_COOKIE_PATH}; HttpOnly; SameSite=strict{secure}"
 
 
 @router.get("/me", response_model=UserOut)

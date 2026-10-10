@@ -41,7 +41,7 @@ def test_login_succeeds_with_correct_password(client):
     register_and_login(client, "login@example.com")
     response = client.post("/api/auth/login", json={"email": "LOGIN@example.com", "password": PASSWORD})
     assert response.status_code == 200
-    assert response.json()["token_type"] == "bearer" and response.json()["expires_in"] == 1800
+    assert response.json()["token_type"] == "bearer" and response.json()["expires_in"] == 900
 
 
 def test_wrong_password_and_unknown_email_get_the_same_answer(client):

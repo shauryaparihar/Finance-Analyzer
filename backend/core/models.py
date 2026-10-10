@@ -189,3 +189,22 @@ class UploadInput(Base):
     upload_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("uploads.id", ondelete="CASCADE"), primary_key=True)
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class RefreshToken(Base):
+    """A long-lived login credential, stored only as a hash. Tokens rotate: using one revokes it and issues the next
+    in the same family. Presenting a token that was already rotated (outside a short grace window) means it may have
+    been stolen, so the whole family is revoked."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    family_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    family_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    revoke_reason: Mapped[Optional[str]] = mapped_column(String(20))  # rotated | logout | reuse
+    replaced_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)

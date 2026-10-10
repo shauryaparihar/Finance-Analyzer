@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  ApiError, correctCategory, deleteBudget, friendlyMessage, getTransactions, login, saveBudget, setUnauthorizedHandler,
-  tokenStore, uploadFile,
+  ApiError, RACE_RETRY_MS, correctCategory, deleteBudget, friendlyMessage, getMe, getTransactions, login, logout,
+  refreshSession, saveBudget, setUnauthorizedHandler, tokenStore, uploadFile,
 } from "./api";
 
 function memoryStorage(): Storage {
@@ -27,8 +27,13 @@ const errorBody = (code: string, message: string, extra: Record<string, unknown>
 let fetchMock: ReturnType<typeof vi.fn>;
 let unauthorized: ReturnType<typeof vi.fn>;
 
+let storage: Storage;
+
 beforeEach(() => {
-  vi.stubGlobal("sessionStorage", memoryStorage());
+  storage = memoryStorage();
+  vi.stubGlobal("sessionStorage", storage);
+  vi.stubGlobal("localStorage", memoryStorage());
+  tokenStore.clear();
   fetchMock = vi.fn();
   vi.stubGlobal("fetch", fetchMock);
   unauthorized = vi.fn();
@@ -37,6 +42,8 @@ beforeEach(() => {
 
 afterEach(() => {
   setUnauthorizedHandler(null);
+  tokenStore.clear();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -88,28 +95,164 @@ describe("sending requests", () => {
   });
 });
 
-describe("failures", () => {
-  it("clears the session and says it expired on a 401 TOKEN_EXPIRED", async () => {
-    tokenStore.set("old");
-    fetchMock.mockResolvedValue(reply(401, errorBody("TOKEN_EXPIRED", "Your session has expired. Please log in again.")));
-    await expect(getTransactions("u1", { limit: 1, offset: 0 })).rejects.toMatchObject({ status: 401, code: "TOKEN_EXPIRED" });
+const expiredBody = errorBody("TOKEN_EXPIRED", "Your session has expired. Please log in again.");
+const tokenBody = (token: string) => ({ access_token: token, token_type: "bearer", expires_in: 900 });
+
+describe("an expired access token", () => {
+  it("is renewed from the refresh cookie and the request is repeated once, without the user noticing", async () => {
+    tokenStore.set("old-token");
+    fetchMock
+      .mockResolvedValueOnce(reply(401, expiredBody)) // the original request
+      .mockResolvedValueOnce(reply(200, tokenBody("new-token"))) // the refresh
+      .mockResolvedValueOnce(reply(200, { id: "u1", email: "a@b.co", created_at: "x" })); // the retry
+    await expect(getMe()).resolves.toMatchObject({ email: "a@b.co" });
+    const calls = fetchMock.mock.calls as [string, RequestInit][];
+    expect(calls.map(([url]) => url)).toEqual(["/api/auth/me", "/api/auth/refresh", "/api/auth/me"]);
+    expect(calls[1][1].method).toBe("POST");
+    expect((calls[1][1].headers as Record<string, string>)["X-FinSight-Request"]).toBe("1");
+    expect((calls[2][1].headers as Record<string, string>).Authorization).toBe("Bearer new-token");
+    expect(tokenStore.get()).toBe("new-token");
+    expect(unauthorized).not.toHaveBeenCalled();
+  });
+
+  it("logs the user out, with the original error, when the refresh cookie is no longer valid", async () => {
+    tokenStore.set("old-token");
+    fetchMock
+      .mockResolvedValueOnce(reply(401, expiredBody))
+      .mockResolvedValueOnce(reply(401, errorBody("REFRESH_EXPIRED", "Your session expired. Please log in again.")));
+    await expect(getMe()).rejects.toMatchObject({ status: 401, code: "TOKEN_EXPIRED" });
     expect(tokenStore.get()).toBeNull();
     expect(unauthorized).toHaveBeenCalledWith("expired");
+    expect(fetchMock).toHaveBeenCalledTimes(2); // no retry after a failed refresh
   });
 
-  it("treats other 401s on protected calls as an invalid session", async () => {
-    tokenStore.set("tampered");
-    fetchMock.mockResolvedValue(reply(401, errorBody("TOKEN_INVALID", "Your session is not valid.")));
-    await expect(getTransactions("u1", { limit: 1, offset: 0 })).rejects.toBeInstanceOf(ApiError);
-    expect(unauthorized).toHaveBeenCalledWith("invalid");
+  it("makes only one refresh when several requests expire at the same moment", async () => {
+    tokenStore.set("old-token");
+    let refreshes = 0;
+    fetchMock.mockImplementation(async (url: string, init: RequestInit) => {
+      if (url === "/api/auth/refresh") {
+        refreshes += 1;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return reply(200, tokenBody("new-token"));
+      }
+      const bearer = (init.headers as Record<string, string>).Authorization;
+      return bearer === "Bearer new-token" ? reply(200, { id: "u1", email: "a@b.co", created_at: "x" }) : reply(401, expiredBody);
+    });
+    await Promise.all([getMe(), getMe(), getMe()]);
+    expect(refreshes).toBe(1); // the single-use refresh token must not be spent three times
   });
 
-  it("does not log the user out when the login itself is rejected", async () => {
+  it("gives up after one retry instead of looping", async () => {
+    tokenStore.set("old-token");
+    fetchMock.mockImplementation(async (url: string) => (url === "/api/auth/refresh" ? reply(200, tokenBody("still-bad")) : reply(401, expiredBody)));
+    await expect(getMe()).rejects.toMatchObject({ code: "TOKEN_EXPIRED" });
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/auth/refresh")).toHaveLength(1);
+    expect(unauthorized).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the session and reports a network problem when the refresh itself cannot reach the server", async () => {
+    tokenStore.set("old-token");
+    fetchMock.mockResolvedValueOnce(reply(401, expiredBody)).mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    await expect(getMe()).rejects.toMatchObject({ code: "NETWORK_ERROR" });
+    expect(unauthorized).not.toHaveBeenCalled();
+  });
+
+  it("also tries the refresh cookie when there is no access token yet (for example after a page reload)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(reply(401, errorBody("NOT_AUTHENTICATED", "Please log in to continue.")))
+      .mockResolvedValueOnce(reply(200, tokenBody("fresh")))
+      .mockResolvedValueOnce(reply(200, { id: "u1", email: "a@b.co", created_at: "x" }));
+    await expect(getMe()).resolves.toMatchObject({ email: "a@b.co" });
+  });
+});
+
+describe("refreshing the session", () => {
+  it("stores the new access token in memory and reports ok", async () => {
+    fetchMock.mockResolvedValue(reply(200, tokenBody("fresh")));
+    await expect(refreshSession()).resolves.toBe("ok");
+    expect(tokenStore.get()).toBe("fresh");
+  });
+
+  it("reports denied, and forgets any token, when there is no valid session", async () => {
+    tokenStore.set("stale");
+    fetchMock.mockResolvedValue(reply(401, errorBody("REFRESH_INVALID", "Please log in again.")));
+    await expect(refreshSession()).resolves.toBe("denied");
+    expect(tokenStore.get()).toBeNull();
+  });
+
+  it("reports unreachable when the server cannot be contacted, without forgetting the token", async () => {
+    tokenStore.set("still-here");
+    fetchMock.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(refreshSession()).resolves.toBe("unreachable");
+    expect(tokenStore.get()).toBe("still-here");
+  });
+
+  it("waits a moment and retries once when another tab renewed the session at the same time", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(reply(401, errorBody("REFRESH_RACE", "Another tab just renewed the session. Please retry.")))
+      .mockResolvedValueOnce(reply(200, tokenBody("after-race")));
+    const outcome = refreshSession();
+    await vi.advanceTimersByTimeAsync(RACE_RETRY_MS + 10);
+    await expect(outcome).resolves.toBe("ok");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(tokenStore.get()).toBe("after-race");
+  });
+
+  it("does not keep retrying a race forever", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockResolvedValue(reply(401, errorBody("REFRESH_RACE", "retry")));
+    const outcome = refreshSession();
+    await vi.advanceTimersByTimeAsync(RACE_RETRY_MS * 3);
+    await expect(outcome).resolves.toBe("denied");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("logging out", () => {
+  it("tells the server to end the session, with the custom header, and never tries to refresh", async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    await expect(logout()).resolves.toBeUndefined();
+    const { url, init, headers } = lastCall();
+    expect(url).toBe("/api/auth/logout");
+    expect(init.method).toBe("POST");
+    expect(headers["X-FinSight-Request"]).toBe("1");
+  });
+  it("does not start a refresh if the logout call itself is unauthorized", async () => {
+    fetchMock.mockResolvedValue(reply(401, errorBody("REFRESH_INVALID", "x")));
+    await expect(logout()).rejects.toBeInstanceOf(ApiError);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("keeping the token out of reach of page scripts", () => {
+  it("never writes the access token to sessionStorage or localStorage", async () => {
+    const sessionWrites = vi.spyOn(storage, "setItem");
+    const localWrites = vi.spyOn(localStorage, "setItem");
+    fetchMock.mockResolvedValue(reply(200, tokenBody("secret-token-value")));
+    await refreshSession();
+    fetchMock.mockResolvedValue(reply(200, tokenBody("another-secret")));
+    await login("a@b.co", "pw");
+    tokenStore.set("manual-token");
+    expect(sessionWrites).not.toHaveBeenCalled();
+    expect(localWrites).not.toHaveBeenCalled();
+    expect(storage.length + localStorage.length).toBe(0);
+  });
+  it("loses the token on a fresh page load, which then needs the cookie to get a new one", () => {
+    tokenStore.set("in-memory-only");
+    tokenStore.clear(); // what a reload does to module state
+    expect(tokenStore.get()).toBeNull();
+  });
+});
+
+describe("other failures", () => {
+  it("does not log the user out, or try to refresh, when the login itself is rejected", async () => {
     tokenStore.set("still-valid");
     fetchMock.mockResolvedValue(reply(401, errorBody("INVALID_CREDENTIALS", "Incorrect email or password.")));
     await expect(login("a@b.co", "wrong")).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
     expect(unauthorized).not.toHaveBeenCalled();
     expect(tokenStore.get()).toBe("still-valid");
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no refresh attempt for a wrong password
   });
 
   it("explains a network failure in plain words", async () => {
@@ -154,18 +297,5 @@ describe("failures", () => {
 
   it("gives a generic message for things that are not API errors", () => {
     expect(friendlyMessage(new Error("TypeError: x is undefined"))).toBe("Something unexpected went wrong. Please try again.");
-  });
-});
-
-describe("the token store", () => {
-  it("survives storage being unavailable", () => {
-    vi.stubGlobal("sessionStorage", {
-      getItem: () => { throw new Error("blocked"); },
-      setItem: () => { throw new Error("blocked"); },
-      removeItem: () => { throw new Error("blocked"); },
-    });
-    expect(tokenStore.get()).toBeNull();
-    expect(() => tokenStore.set("x")).not.toThrow();
-    expect(() => tokenStore.clear()).not.toThrow();
   });
 });

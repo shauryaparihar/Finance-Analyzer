@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation, useNavigate } from "react-router";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/button";
-import { ErrorNotice, Notice } from "../common";
+import { ErrorNotice, Notice, Spinner } from "../common";
 
 export function AuthPage({ mode }: { mode: "login" | "register" }) {
   const { status, notice, login, register, clearNotice } = useAuth();
@@ -16,6 +16,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
   const isLogin = mode === "login";
   const destination = (location.state as { from?: string } | null)?.from ?? "/";
 
+  if (status === "loading") return <div className="flex min-h-screen items-center justify-center bg-background"><Spinner label="Checking your session..." /></div>;
   if (status === "authenticated") return <Navigate to={destination} replace />;
 
   async function submit(event: FormEvent) {

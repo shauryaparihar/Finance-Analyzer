@@ -9,31 +9,22 @@ import type {
  * session, validation error, server error) into one ApiError with a message that is safe to show to a person.
  */
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : "/api";
-const TOKEN_KEY = "finsight.token";
+const CSRF_HEADER = "X-FinSight-Request";
+export const RACE_RETRY_MS = 300;
 
-// The token lives in sessionStorage: it is gone when the tab closes, and is short-lived (30 minutes). Trade-off:
-// any script running on the page could read it (XSS). A stronger design is a refresh token in an HttpOnly cookie.
+// The short-lived access token is kept in memory only. It is never written to sessionStorage or localStorage, so a
+// script injected into the page cannot copy it out of storage and reuse it later. The long-lived credential is the
+// refresh token: an HttpOnly cookie that page scripts cannot read at all. After a page reload the access token is
+// simply fetched again from that cookie (see refreshSession). The API must be reached on the same origin (the dev
+// server proxy, or the Vercel rewrite in production) so the browser sends the cookie.
+let accessToken: string | null = null;
 export const tokenStore = {
-  get(): string | null {
-    try {
-      return sessionStorage.getItem(TOKEN_KEY);
-    } catch {
-      return null;
-    }
+  get: (): string | null => accessToken,
+  set: (token: string): void => {
+    accessToken = token;
   },
-  set(token: string): void {
-    try {
-      sessionStorage.setItem(TOKEN_KEY, token);
-    } catch {
-      /* storage unavailable: the user simply has to log in again after a refresh */
-    }
-  },
-  clear(): void {
-    try {
-      sessionStorage.removeItem(TOKEN_KEY);
-    } catch {
-      /* nothing to clear */
-    }
+  clear: (): void => {
+    accessToken = null;
   },
 };
 
@@ -89,10 +80,50 @@ interface RequestOptions {
   body?: FormData;
   query?: Record<string, string | number | boolean | undefined>;
   auth?: boolean; // false for register/login: a 401 there means "wrong password", not "session expired"
+  csrf?: boolean; // the cookie-authenticated endpoints need the custom header
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", json, body, query, auth = true } = options;
+const SESSION_ERRORS = new Set(["TOKEN_EXPIRED", "TOKEN_INVALID", "NOT_AUTHENTICATED"]);
+
+export type RefreshOutcome = "ok" | "denied" | "unreachable";
+let refreshing: Promise<RefreshOutcome> | null = null;
+
+/**
+ * Ask the server for a new access token using the refresh cookie. Several callers at once share one request, so
+ * the single-use refresh token is not spent twice. "denied" means there is no valid session; "unreachable" means
+ * the server could not be contacted (the session may still be fine).
+ */
+export function refreshSession(): Promise<RefreshOutcome> {
+  if (!refreshing) refreshing = attemptRefresh(0).finally(() => { refreshing = null; });
+  return refreshing;
+}
+
+async function attemptRefresh(attempt: number): Promise<RefreshOutcome> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/auth/refresh`, { method: "POST", headers: { [CSRF_HEADER]: "1" }, credentials: "same-origin" });
+  } catch {
+    return "unreachable";
+  }
+  if (response.ok) {
+    const body = (await response.json()) as TokenResponse;
+    tokenStore.set(body.access_token);
+    return "ok";
+  }
+  if (response.status === 401 && attempt === 0) {
+    const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
+    if (body?.error.code === "REFRESH_RACE") {
+      // another tab renewed the session a moment ago and its new cookie is already in the browser: just try again
+      await new Promise((resolve) => setTimeout(resolve, RACE_RETRY_MS));
+      return attemptRefresh(1);
+    }
+  }
+  tokenStore.clear();
+  return "denied";
+}
+
+async function request<T>(path: string, options: RequestOptions = {}, alreadyRetried = false): Promise<T> {
+  const { method = "GET", json, body, query, auth = true, csrf = false } = options;
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined) params.set(key, String(value));
@@ -103,6 +134,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const token = tokenStore.get();
   if (token) headers.Authorization = `Bearer ${token}`;
   if (json !== undefined) headers["Content-Type"] = "application/json";
+  if (csrf) headers[CSRF_HEADER] = "1";
 
   let response: Response;
   try {
@@ -123,6 +155,12 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     const failure = describeFailure(response.status, payload as ApiErrorBody | null);
     if (response.status === 401 && auth) {
+      // The access token is short-lived. Before giving up, try once to renew it from the refresh cookie.
+      if (!alreadyRetried && SESSION_ERRORS.has(failure.code)) {
+        const outcome = await refreshSession();
+        if (outcome === "ok") return request<T>(path, options, true);
+        if (outcome === "unreachable") throw new ApiError(0, "NETWORK_ERROR", "Cannot reach the server. Check your connection and try again.");
+      }
       tokenStore.clear();
       onUnauthorized?.(failure.code === "TOKEN_EXPIRED" ? "expired" : token ? "invalid" : "missing");
     }
@@ -137,6 +175,8 @@ export const register = (email: string, password: string) =>
 export const login = (email: string, password: string) =>
   request<TokenResponse>("/auth/login", { method: "POST", json: { email, password }, auth: false });
 export const getMe = () => request<User>("/auth/me");
+/** End the login session on the server (revokes the refresh cookie's session). */
+export const logout = () => request<void>("/auth/logout", { method: "POST", auth: false, csrf: true });
 
 // --- uploads ---
 export function uploadFile(file: File, amountConvention: AmountConvention = "auto") {
