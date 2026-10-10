@@ -24,6 +24,7 @@ MIN_HISTORY_DAYS = 90
 BACKTEST_HORIZON_OPTIONS = (31, 21, 14)
 MIN_FOLDS = 3
 BACKTEST_STEP_DAYS = 7  # how far the forecast origin moves between folds
+MAX_FOLDS = 12  # the backtest re-trains the model once per fold, so cost would otherwise grow with years of history
 MIN_TRAIN_DAYS = 56  # first backtest fold trains on at least 8 weeks
 WARMUP = 28  # the slowest feature (28-day average) needs 28 days of past
 RECENT_DAYS_SHOWN = 60
@@ -122,7 +123,9 @@ def _window_total_error_pct(actual_windows: list[np.ndarray], predicted_windows:
 def backtest(values: np.ndarray, dates: pd.DatetimeIndex) -> dict[str, Any]:
     """Score baseline and model over rolling-origin folds. Daily errors are pooled over every forecast day."""
     horizon = pick_horizon(len(values))
-    folds = list(rolling_origin_splits(len(values), MIN_TRAIN_DAYS, horizon, BACKTEST_STEP_DAYS))
+    all_folds = list(rolling_origin_splits(len(values), MIN_TRAIN_DAYS, horizon, BACKTEST_STEP_DAYS))
+    # Keep the most recent folds: they are the closest to the period being forecast, and they bound the running time.
+    folds = all_folds[-MAX_FOLDS:]
     actual, base_pred, model_pred = [], [], []
     for train_end, test_end in folds:
         train_values, train_dates = values[:train_end], dates[:train_end]
@@ -136,6 +139,7 @@ def backtest(values: np.ndarray, dates: pd.DatetimeIndex) -> dict[str, Any]:
     return {
         "horizon_days": horizon,
         "folds": len(folds),
+        "folds_available": len(all_folds),
         "forecast_days_scored": int(sum(len(a) for a in actual)),
         "baseline": baseline_scores,
         "model": model_scores,

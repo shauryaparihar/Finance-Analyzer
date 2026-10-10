@@ -16,6 +16,8 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         value: https://finance-analyzer-nu.vercel.app
+      - key: JOB_STALE_AFTER_SECONDS  # the free instance is slow enough that a busy job can miss a 60 s heartbeat
+        value: "600"
       - key: GOOGLE_CLIENT_ID  # from Google Cloud Console (see docs/deployment.md); leave empty to hide the Google button
         sync: false
       - key: GOOGLE_CLIENT_SECRET
