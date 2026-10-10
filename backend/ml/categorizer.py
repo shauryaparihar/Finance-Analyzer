@@ -74,6 +74,11 @@ class Categorizer:
         return self.metadata["model_version"]
 
     @property
+    def categories(self) -> list[str]:
+        """The categories the model can assign (the product's category list)."""
+        return sorted(str(c) for c in self.metadata.get("training_data", {}).get("classes", []))
+
+    @property
     def threshold(self) -> float:
         return float(self.metadata["confidence_threshold"])
 

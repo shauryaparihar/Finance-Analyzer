@@ -1,213 +1,223 @@
-import { useState, useRef } from "react";
+import { DragEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { Upload, FileText, Loader2 } from "lucide-react";
-import { Button } from "../ui/button";
-import { uploadFile } from "../../api";
+import { FileText, Loader2, Trash2, Upload } from "lucide-react";
+import { deleteUpload, listUploads, uploadFile } from "../../api";
 import { useAppContext } from "../../context/AppContext";
+import { useResource } from "../../hooks/useResource";
+import { dateTime } from "../../lib/format";
+import { UPLOAD_STATUS_LABELS, isActive } from "../../lib/status";
+import type { AmountConvention, UploadAccepted, UploadItem, UploadStatus } from "../../types";
+import { Card, ErrorNotice, Notice, PageHeader, Pill, SectionTitle, Tone } from "../common";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle,
+} from "../ui/alert-dialog";
+import { Button } from "../ui/button";
+
+const CONVENTIONS: { value: AmountConvention; label: string }[] = [
+  { value: "auto", label: "Detect automatically (recommended)" },
+  { value: "expenses_positive", label: "Spending is positive; income and refunds are negative" },
+  { value: "expenses_negative", label: "Spending is negative (bank-statement style)" },
+];
+
+const STATUS_TONE: Record<UploadStatus, Tone> = { queued: "info", processing: "info", completed: "good", partial: "warn", failed: "bad" };
 
 export function UploadPage() {
   const navigate = useNavigate();
-  const { setUploadId, isLoading, setIsLoading } = useAppContext();
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { uploadId, setUploadId } = useAppContext();
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [convention, setConvention] = useState<AmountConvention>("auto");
+  const [error, setError] = useState<unknown>(null);
+  const [result, setResult] = useState<UploadAccepted | null>(null);
+  const [toDelete, setToDelete] = useState<UploadItem | null>(null);
+  const [deleteError, setDeleteError] = useState<unknown>(null);
 
-  const handleFileUpload = async (file: File) => {
+  const history = useResource(listUploads, []);
+  const anyActive = history.data?.some((u) => isActive(u.status)) ?? false;
+  useEffect(() => {
+    if (!anyActive) return;
+    const timer = setTimeout(history.reload, 3000); // keep the list fresh while something is running
+    return () => clearTimeout(timer);
+  }, [anyActive, history.data, history.reload]);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setError(null);
+    setResult(null);
     try {
-      setIsLoading(true);
-      const data = await uploadFile(file);
-      setUploadId(data.upload_id);
-      navigate("/overview");
-    } catch (error) {
-      console.error("Upload failed:", error);
-      alert("Failed to upload file. Please try again.");
+      const accepted = await uploadFile(file, convention);
+      setUploadId(accepted.upload_id);
+      history.reload();
+      if (accepted.reused || accepted.rows_dropped > 0) setResult(accepted);
+      else navigate("/overview");
+    } catch (e) {
+      setError(e);
     } finally {
-      setIsLoading(false);
+      setBusy(false);
+      if (fileInput.current) fileInput.current.value = "";
     }
-  };
+  }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) handleFileUpload(file);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
+  function onDrop(e: DragEvent) {
     e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+    setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file) handleFileUpload(file);
-  };
+    if (file) void handleFile(file);
+  }
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    try {
+      await deleteUpload(toDelete.id);
+      if (toDelete.id === uploadId) setUploadId(null);
+      setToDelete(null);
+      setDeleteError(null);
+      history.reload();
+    } catch (e) {
+      setDeleteError(e);
+    }
+  }
 
   return (
-    <div className="h-full flex items-center justify-center p-8">
-      <div className="w-full max-w-3xl">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-sans mb-3 text-foreground">
-            Upload Transaction Data
-          </h2>
-          <p className="text-muted-foreground">
-            Import your CSV file to analyze spending patterns, detect anomalies, and generate predictions
+    <div className="mx-auto max-w-4xl space-y-8 p-4 sm:p-8">
+      <PageHeader title="Upload transactions" subtitle="Import a CSV export of your transactions to see spending, budget risk and anything unusual." />
+
+      <Card>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragging(false); }}
+          onDrop={onDrop}
+          className={`rounded-lg border-2 border-dashed p-6 text-center transition-all sm:p-10 ${dragging ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}
+        >
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-secondary">
+            <Upload className="h-7 w-7 text-primary" />
+          </div>
+          <h3 className="mb-1 font-sans text-lg text-foreground">Drop your CSV file here</h3>
+          <p className="mb-4 text-sm text-muted-foreground">or choose a file (up to 5 MB and 50,000 rows)</p>
+          <input
+            ref={fileInput} type="file" accept=".csv" className="hidden" id="file-upload" disabled={busy}
+            onChange={(e) => { const file = e.target.files?.[0]; if (file) void handleFile(file); }}
+          />
+          <Button onClick={() => fileInput.current?.click()} disabled={busy} className="px-6">
+            {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+            {busy ? "Uploading..." : "Choose file"}
+          </Button>
+        </div>
+
+        <div className="mt-6">
+          <label htmlFor="convention" className="mb-1 block text-sm text-muted-foreground">How does your file write amounts?</label>
+          <select
+            id="convention" value={convention} onChange={(e) => setConvention(e.target.value as AmountConvention)}
+            className="w-full rounded-md border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:border-primary"
+          >
+            {CONVENTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">
+            If the file mixes both signs almost evenly, automatic detection will ask you to choose here instead of guessing.
           </p>
         </div>
 
-        {/* Drag and Drop Zone */}
-        <div
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
-          className={`
-            border-2 border-dashed rounded-lg p-12 mb-8 transition-all duration-200
-            ${isDragging 
-              ? "border-primary bg-primary/10" 
-              : "border-border hover:border-primary/50"}
-          `}
-        >
-          <div className="flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full bg-secondary flex items-center justify-center mb-4">
-              <Upload className="w-8 h-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-sans mb-2 text-foreground">
-              Drop your CSV file here
-            </h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              or click to browse
-            </p>
-            <input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              id="file-upload"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              disabled={isLoading}
-            />
-            <label htmlFor="file-upload">
-              <Button 
-                variant="outline" 
-                className="cursor-pointer border-primary/50 hover:bg-primary/10 hover:border-primary"
-                asChild
-                disabled={isLoading}
-              >
-                <span>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-                  {isLoading ? "Uploading..." : "Select File"}
-                </span>
-              </Button>
-            </label>
-          </div>
+        <div className="mt-4 space-y-3">
+          {error !== null && <ErrorNotice error={error} />}
+          {result && (
+            <Notice tone={result.reused ? "info" : "warn"}>
+              <p>{result.message}</p>
+              {result.rows_dropped > 0 && (
+                <p className="mt-1">{result.rows_dropped} of {result.rows_received} rows were skipped because their date or amount could not be read.</p>
+              )}
+              <button onClick={() => navigate("/overview")} className="mt-2 text-primary underline-offset-4 hover:underline">Open this analysis</button>
+            </Notice>
+          )}
         </div>
+      </Card>
 
-        {/* Expected CSV Schema */}
-        <div className="bg-card border border-border rounded-lg p-6">
-          <h4 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-4">
-            Expected CSV Schema
-          </h4>
-          
-          <div className="overflow-hidden rounded-lg border border-border">
-            <table className="w-full">
-              <thead className="bg-secondary">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Column
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Type
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Required
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                    Example
-                  </th>
+      <Card>
+        <SectionTitle>Expected CSV columns</SectionTitle>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[480px] text-sm">
+            <thead className="bg-secondary">
+              <tr>{["Column", "Required", "Example"].map((h) => <th key={h} className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-muted-foreground">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {[
+                ["date", true, "2025-03-15"],
+                ["amount", true, "52.40"],
+                ["description", false, "WHOLE FOODS MKT 10234"],
+                ["category", false, "Groceries"],
+              ].map(([name, required, example]) => (
+                <tr key={String(name)}>
+                  <td className="px-4 py-3 font-mono text-foreground">{String(name)}</td>
+                  <td className="px-4 py-3"><Pill tone={required ? "good" : "neutral"}>{required ? "Yes" : "Optional"}</Pill></td>
+                  <td className="px-4 py-3 font-mono text-muted-foreground">{String(example)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Without a description a transaction stays &quot;Uncategorized&quot; for you to categorize. A category column from your file is kept as you wrote it.
+        </p>
+      </Card>
+
+      <Card>
+        <SectionTitle>Your analyses</SectionTitle>
+        {history.error !== null && <ErrorNotice error={history.error} onRetry={history.reload} />}
+        {history.loading && !history.data && <p className="text-sm text-muted-foreground">Loading...</p>}
+        {history.data?.length === 0 && <p className="text-sm text-muted-foreground">Nothing yet. Upload a file above to get started.</p>}
+        {history.data && history.data.length > 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
+              <thead>
+                <tr className="border-b border-border text-left font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                  <th className="py-2 pr-3">File</th><th className="py-2 pr-3">Uploaded</th><th className="py-2 pr-3 text-right">Rows</th><th className="py-2 pr-3">Status</th><th className="py-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                <tr className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-sm text-foreground">date</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">Date</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-primary/20 text-primary">
-                      Yes
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm text-muted-foreground">2024-03-15</td>
-                </tr>
-                <tr className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-sm text-foreground">amount</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">Number</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-primary/20 text-primary">
-                      Yes
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm text-muted-foreground">$52.40</td>
-                </tr>
-                <tr className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-sm text-foreground">category</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">String</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">
-                      Optional
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm text-muted-foreground">Groceries</td>
-                </tr>
-                <tr className="hover:bg-secondary/30 transition-colors">
-                  <td className="px-4 py-3 font-mono text-sm text-foreground">description</td>
-                  <td className="px-4 py-3 text-sm text-muted-foreground">String</td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-muted/50 text-muted-foreground">
-                      Optional
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-mono text-sm text-muted-foreground">Whole Foods</td>
-                </tr>
+                {history.data.map((u) => (
+                  <tr key={u.id} className={u.id === uploadId ? "bg-secondary/40" : ""}>
+                    <td className="max-w-[14rem] truncate py-3 pr-3 text-foreground" title={u.filename}>{u.filename}</td>
+                    <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">{dateTime(u.created_at)}</td>
+                    <td className="py-3 pr-3 text-right font-mono">{u.row_count}</td>
+                    <td className="py-3 pr-3">
+                      <Pill tone={STATUS_TONE[u.status]}>
+                        {isActive(u.status) && <Loader2 className="h-3 w-3 animate-spin" />}
+                        {UPLOAD_STATUS_LABELS[u.status]}
+                      </Pill>
+                    </td>
+                    <td className="whitespace-nowrap py-3 text-right">
+                      <Button variant="outline" size="sm" onClick={() => { setUploadId(u.id); navigate("/overview"); }}>Open</Button>
+                      <Button variant="ghost" size="sm" aria-label={`Delete ${u.filename}`} onClick={() => { setDeleteError(null); setToDelete(u); }}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
+        )}
+        {history.data?.some((u) => u.status === "failed" || u.status === "partial") && (
+          <p className="mt-3 text-xs text-muted-foreground">To re-run a failed or partly completed analysis, delete it and upload the file again.</p>
+        )}
+      </Card>
 
-          {/* Sample Data Preview */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="text-xs text-muted-foreground mb-3 font-mono uppercase tracking-wider">
-              Sample Data
-            </p>
-            <div className="bg-background rounded border border-border p-3 font-mono text-xs overflow-x-auto">
-              <pre className="text-muted-foreground">
-{`date,amount,category,description
-2024-03-15,52.40,Groceries,Whole Foods
-2024-03-14,120.00,Utilities,Electric Bill
-2024-03-13,18.50,Food,Coffee Shop`}
-              </pre>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Button */}
-        <div className="mt-8 text-center">
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-6 text-base"
-          >
-            {isLoading ? (
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            ) : (
-              <FileText className="w-5 h-5 mr-2" />
-            )}
-            {isLoading ? "Processing..." : "Analyze Transactions"}
-          </Button>
-        </div>
-      </div>
+      <AlertDialog open={toDelete !== null} onOpenChange={(open) => { if (!open) setToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this analysis?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {toDelete?.filename} and everything stored for it (transactions, results, your category corrections and reviews) will be permanently deleted. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError !== null && <ErrorNotice error={deleteError} />}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={(e) => { e.preventDefault(); void confirmDelete(); }} className="bg-destructive text-white hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

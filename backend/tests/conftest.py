@@ -112,7 +112,7 @@ def client(test_engine, db, monkeypatch):
             "processed_df": df,
         }
 
-    monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="test-model", threshold=0.5), raising=False)
+    monkeypatch.setattr(main.app.state, "categorizer", SimpleNamespace(version="test-model", threshold=0.5, categories=["Groceries", "Rent"]), raising=False)
     runner = InlineJobRunner(
         factory,
         analysis_job.make_processor(lambda: main.app.state.categorizer),

@@ -163,6 +163,12 @@ def _upload_out(u: Upload) -> UploadOut:
     )
 
 
+@router.get("/categories")
+def list_categories(user_id: uuid.UUID = Depends(get_current_user_id), categorizer=Depends(get_categorizer)):
+    """The categories the app can assign, for the category-correction dropdown."""
+    return {"categories": categorizer.categories, "model_version": categorizer.version}
+
+
 @router.get("/uploads", response_model=list[UploadOut])
 def list_uploads(
     limit: int = Query(20, ge=1, le=100),

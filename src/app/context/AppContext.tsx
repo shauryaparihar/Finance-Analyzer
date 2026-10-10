@@ -1,38 +1,55 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, ReactNode, useContext, useEffect, useState } from "react";
+import { useAuth } from "./AuthContext";
+
+/** Which of the user's analyses the pages are showing. Kept per tab (sessionStorage) and cleared on logout. */
+const KEY = "finsight.uploadId";
+
+function read(): string | null {
+  try {
+    return sessionStorage.getItem(KEY);
+  } catch {
+    return null;
+  }
+}
 
 interface AppContextType {
   uploadId: string | null;
   setUploadId: (id: string | null) => void;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [uploadId, setUploadIdState] = useState<string | null>(localStorage.getItem('uploadId'));
-  const [isLoading, setIsLoading] = useState(false);
+export function AppProvider({ children }: { children: ReactNode }) {
+  const { status } = useAuth();
+  const [uploadId, setUploadIdState] = useState<string | null>(read);
 
   const setUploadId = (id: string | null) => {
     setUploadIdState(id);
-    if (id) {
-      localStorage.setItem('uploadId', id);
-    } else {
-      localStorage.removeItem('uploadId');
+    try {
+      if (id) sessionStorage.setItem(KEY, id);
+      else sessionStorage.removeItem(KEY);
+    } catch {
+      /* storage unavailable: the selection just will not survive a refresh */
     }
   };
 
-  return (
-    <AppContext.Provider value={{ uploadId, setUploadId, isLoading, setIsLoading }}>
-      {children}
-    </AppContext.Provider>
-  );
+  useEffect(() => {
+    // Uploads belong to one user, so never carry a selection across logins.
+    if (status === "anonymous") {
+      setUploadIdState(null);
+      try {
+        sessionStorage.removeItem(KEY);
+      } catch {
+        /* nothing to clear */
+      }
+    }
+  }, [status]);
+
+  return <AppContext.Provider value={{ uploadId, setUploadId }}>{children}</AppContext.Provider>;
 }
 
-export function useAppContext() {
+export function useAppContext(): AppContextType {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
+  if (context === undefined) throw new Error("useAppContext must be used within an AppProvider");
   return context;
 }

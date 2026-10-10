@@ -132,3 +132,23 @@ def test_startup_with_a_corrupted_model_leaves_the_app_running_but_not_ready(tmp
             return main.app.state.categorizer
 
     assert asyncio.run(run_startup()) is None
+
+
+def test_the_category_list_comes_from_the_model_and_needs_login(client):
+    assert client.get("/api/categories").status_code == 401
+    body = client.get("/api/categories", headers=register_and_login(client)).json()
+    assert body["categories"] == ["Groceries", "Rent"] and body["model_version"] == "test-model"
+
+
+def test_the_real_categorizer_exposes_its_seventeen_categories():
+    from backend.ml.categorizer import load_categorizer
+
+    categories = load_categorizer().categories
+    assert len(categories) == 17 and "Groceries" in categories and "Uncategorized" not in categories
+    assert categories == sorted(categories)
+
+
+def test_the_category_list_is_unavailable_while_the_model_is_(client, monkeypatch):
+    monkeypatch.setattr(main.app.state, "categorizer", None, raising=False)
+    response = client.get("/api/categories", headers=register_and_login(client))
+    assert response.status_code == 503 and response.json()["error"]["code"] == "MODEL_UNAVAILABLE"

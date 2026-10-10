@@ -1,6 +1,7 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes';
 import { AppProvider } from './context/AppContext';
+import { AuthProvider } from './context/AuthContext';
 import { Component, ReactNode } from 'react';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
@@ -33,9 +34,11 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boole
 function App() {
   return (
     <ErrorBoundary>
-      <AppProvider>
-        <RouterProvider router={router} />
-      </AppProvider>
+      <AuthProvider>
+        <AppProvider>
+          <RouterProvider router={router} />
+        </AppProvider>
+      </AuthProvider>
     </ErrorBoundary>
   );
 }

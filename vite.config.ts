@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -12,6 +12,11 @@ export default defineConfig({
     alias: {
       '@': path.resolve('./src'),
     },
+  },
+
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.{ts,tsx}'],
   },
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.

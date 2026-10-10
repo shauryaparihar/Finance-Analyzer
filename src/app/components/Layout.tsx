@@ -1,82 +1,93 @@
-import { Outlet, Link, useLocation } from "react-router";
-import { BarChart3, TrendingUp, AlertTriangle, Upload } from "lucide-react";
+import { Link, NavLink, Outlet } from "react-router";
+import { AlertTriangle, BarChart3, LogOut, Tags, TrendingUp, Upload } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { cn } from "./ui/utils";
 
 const navItems = [
-  { path: "/overview", label: "Overview", icon: BarChart3 },
-  { path: "/predictions", label: "Predictions", icon: TrendingUp },
-  { path: "/anomalies", label: "Unusual Transactions", icon: AlertTriangle },
+  { path: "/", label: "Upload", icon: Upload, end: true },
+  { path: "/overview", label: "Overview & Budgets", icon: BarChart3, end: false },
+  { path: "/forecast", label: "Forecast", icon: TrendingUp, end: false },
+  { path: "/unusual", label: "Unusual Transactions", icon: AlertTriangle, end: false },
+  { path: "/categories", label: "Categories", icon: Tags, end: false },
 ];
 
+function Brand() {
+  return (
+    <Link to="/" className="block transition-opacity hover:opacity-80">
+      <h1 className="font-sans text-xl tracking-tight text-primary">FinSight</h1>
+      <p className="mt-1 font-mono text-xs text-muted-foreground">BUDGET RISK &amp; TRANSACTION REVIEW</p>
+    </Link>
+  );
+}
+
 export function Layout() {
-  const location = useLocation();
-  const isUploadPage = location.pathname === "/";
+  const { user, logout } = useAuth();
 
   return (
-    <div className="flex h-screen bg-background overflow-hidden">
-      {/* Fixed Sidebar */}
-      <aside className="w-60 bg-sidebar border-r border-border flex flex-col">
-        {/* Logo/Brand */}
-        <Link to="/" className="block hover:opacity-80 transition-opacity">
-          <div className="p-6 border-b border-border">
-            <h1 className="text-xl font-sans text-primary tracking-tight">
-              FinSight
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">
-              ANALYTICS TERMINAL
-            </p>
-          </div>
-        </Link>
-
-        {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location.pathname === item.path;
-
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 text-sm",
-                  "border-l-2 -ml-4 pl-4",
-                  isActive
-                    ? "border-primary bg-secondary/50 text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/30"
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
+    <div className="flex min-h-screen flex-col bg-background md:h-screen md:flex-row md:overflow-hidden">
+      {/* Wide screens: fixed sidebar */}
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar md:flex">
+        <div className="border-b border-border p-6">
+          <Brand />
+        </div>
+        <nav className="flex-1 space-y-1 p-4" aria-label="Main">
+          {navItems.map(({ path, label, icon: Icon, end }) => (
+            <NavLink
+              key={path}
+              to={path}
+              end={end}
+              className={({ isActive }) =>
+                cn(
+                  "-ml-4 flex items-center gap-3 rounded-lg border-l-2 py-2.5 pl-4 pr-3 text-sm transition-all duration-200",
+                  isActive ? "border-primary bg-secondary/50 text-foreground" : "border-transparent text-muted-foreground hover:bg-secondary/30 hover:text-foreground",
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
-
-        {/* Upload Status at Bottom */}
-        <div className="p-4 border-t border-border">
-          <div className="bg-secondary rounded-lg p-3">
-            <div className="flex items-center gap-2 mb-2">
-              <Upload className="w-4 h-4 text-muted-foreground" />
-              <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">
-                Status
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                isUploadPage ? "bg-muted-foreground" : "bg-primary animate-pulse"
-              )} />
-              <span className="text-sm text-foreground font-mono">
-                {isUploadPage ? "Idle" : "Ready"}
-              </span>
-            </div>
+        <div className="border-t border-border p-4">
+          <div className="rounded-lg bg-secondary p-3">
+            <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Signed in as</p>
+            <p className="mb-3 truncate text-sm text-foreground" title={user?.email}>{user?.email}</p>
+            <button onClick={logout} className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+              <LogOut className="h-4 w-4" /> Log out
+            </button>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-auto">
+      {/* Narrow screens: top bar with a scrolling menu */}
+      <header className="border-b border-border bg-sidebar md:hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-3">
+          <Brand />
+          <button onClick={logout} className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground" aria-label="Log out">
+            <LogOut className="h-4 w-4" /> Log out
+          </button>
+        </div>
+        <nav className="flex gap-1 overflow-x-auto px-2 pb-2" aria-label="Main">
+          {navItems.map(({ path, label, icon: Icon, end }) => (
+            <NavLink
+              key={path}
+              to={path}
+              end={end}
+              className={({ isActive }) =>
+                cn(
+                  "flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm",
+                  isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/40",
+                )
+              }
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </header>
+
+      <main className="min-w-0 flex-1 md:overflow-auto">
         <Outlet />
       </main>
     </div>

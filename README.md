@@ -80,6 +80,8 @@ In a separate terminal, start the React frontend:
 npm run dev
 ```
 
+Open http://localhost:5173, create an account on the Register page, then upload `data/sample_transactions.csv`.
+
 The application will be available at:
 - **Dashboard**: http://localhost:5173
 - **API Documentation**: http://127.0.0.1:8000/docs
@@ -170,6 +172,14 @@ This project is configured for deployment on **Render** (backend) + **Vercel** (
 | `VITE_API_URL` | Vercel | Backend URL for API calls |
 
 
+
+## Frontend checks
+
+```bash
+npm run typecheck   # TypeScript, strict
+npm test            # API client, helpers, rendered screens, copy rules
+npm run build
+```
 
 ## Operations
 

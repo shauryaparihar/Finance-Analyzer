@@ -1,338 +1,149 @@
-import { KPICard } from "../KPICard";
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { ArrowUpDown, Loader2, AlertCircle } from "lucide-react";
-import { useState, useEffect, useMemo, JSXElementConstructor, Key, ReactElement, ReactNode, ReactPortal } from "react";
-import { getResult, getStatus } from "../../api";
+import { useMemo, useState } from "react";
+import { Link } from "react-router";
+import { ArrowUpDown } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ApiError, getCategories, getSummary } from "../../api";
 import { useAppContext } from "../../context/AppContext";
+import { useResource } from "../../hooks/useResource";
+import { amount, shortDate } from "../../lib/format";
+import { categoryOptions } from "../../lib/review";
+import { whyNoResult } from "../../lib/status";
+import type { ModuleStatus, RecentTransaction } from "../../types";
+import { BudgetPanel } from "../BudgetPanel";
+import { Card, ErrorNotice, Notice, PageHeader, SectionTitle, Spinner } from "../common";
+import { KPICard } from "../KPICard";
+import { UploadGate } from "../UploadGate";
 
-type SortConfig = {
-  key: string;
-  direction: "asc" | "desc";
-} | null;
+const COLORS = ["#00D4C8", "#58A6FF", "#A371F7", "#FFA657", "#F85149"];
+
+type SortKey = "date" | "description" | "amount" | "category";
+type Sort = { key: SortKey; direction: "asc" | "desc" } | null;
 
 export function OverviewPage() {
+  return <UploadGate>{(status) => <OverviewContent modules={status.modules} />}</UploadGate>;
+}
+
+function OverviewContent({ modules }: { modules: ModuleStatus[] }) {
   const { uploadId } = useAppContext();
-  const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const id = uploadId as string;
+  const summary = useResource(() => getSummary(id), [id]);
+  const modelCategories = useResource(() => getCategories().then((c) => c.categories).catch(() => [] as string[]), []);
+  const [sort, setSort] = useState<Sort>(null);
 
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-
-    async function fetchData() {
-      if (!uploadId) {
-        setLoading(false);
-        return;
-      }
-      try {
-        setLoading(true);
-        // First check the overall status
-        const statusData = await getStatus(uploadId);
-
-        if (statusData.status === 'processing') {
-          // Keep polling if still processing
-          pollInterval = setTimeout(fetchData, 3000);
-          return;
-        }
-
-        if (statusData.status === 'failed') {
-          setError("Data processing failed. Please try a different file.");
-          setLoading(false);
-          return;
-        }
-
-        // If completed or other state, try fetching results
-        const result = await getResult(uploadId, "summary");
-        setData(result.data);
-        setError(null);
-        setLoading(false);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load dashboard data. Please ensure the backend is running.");
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-    return () => {
-      if (pollInterval) clearTimeout(pollInterval);
-    };
-  }, [uploadId]);
-
-  const transactions = data?.recent_transactions || [];
-
-  const sortedTransactions = useMemo(() => {
-    if (!sortConfig) return transactions;
-    return [...transactions].sort((a: any, b: any) => {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-      if (aValue < bValue) return sortConfig.direction === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === "asc" ? 1 : -1;
+  const recent = summary.data?.data.recent_transactions;
+  const rows = useMemo<RecentTransaction[]>(() => {
+    const list = [...(recent ?? [])];
+    if (!sort) return list;
+    return list.sort((a, b) => {
+      const x = a[sort.key] ?? "";
+      const y = b[sort.key] ?? "";
+      if (x < y) return sort.direction === "asc" ? -1 : 1;
+      if (x > y) return sort.direction === "asc" ? 1 : -1;
       return 0;
     });
-  }, [transactions, sortConfig]);
+  }, [recent, sort]);
 
-  const handleSort = (key: any) => {
-    setSortConfig((current) => {
+  if (summary.loading && !summary.data) return <Spinner label="Loading summary..." />;
+  if (summary.error !== null) {
+    const missing = summary.error instanceof ApiError && summary.error.status === 404;
+    return (
+      <div className="p-4 sm:p-8">
+        {missing ? <Notice tone="warn">{whyNoResult(modules, "summary")}</Notice> : <ErrorNotice error={summary.error} onRetry={summary.reload} />}
+      </div>
+    );
+  }
+  const s = summary.data!.data;
+  const categories = s.category_spending ?? [];
+  const monthly = s.monthly_spending ?? [];
+  const chartCategories = categories.slice(0, 10);
+  const categoryNames = categoryOptions(modelCategories.data ?? [], categories.map((c) => c.category));
+
+  const toggleSort = (key: SortKey) =>
+    setSort((current) => {
       if (!current || current.key !== key) return { key, direction: "asc" };
-      if (current.direction === "asc") return { key, direction: "desc" };
-      return null;
+      return current.direction === "asc" ? { key, direction: "desc" } : null;
     });
-  };
-
-  if (loading) {
-    return (
-      <div className="h-full flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="w-8 h-8 text-primary animate-spin" />
-        <p className="text-muted-foreground font-mono text-sm animate-pulse">
-          ANALYZING TRANSACTION DATA...
-        </p>
-      </div>
-    );
-  }
-
-  if (!uploadId || error) {
-    return (
-      <div className="h-full flex items-center justify-center p-8">
-        <div className="bg-card border border-border rounded-lg p-8 max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-          <h2 className="text-xl font-sans mb-2">No Data Available</h2>
-          <p className="text-muted-foreground mb-6">
-            {error || "Please upload your transaction data first to view the dashboard."}
-          </p>
-          <a href="/" className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90">
-            Go to Upload
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  // Predefined chart colors from FinSight palette
-  const CHART_COLORS = ["#00D4C8", "#58A6FF", "#A371F7", "#FFA657", "#F85149"];
-
-  const categoryData = data?.category_spending?.map((item: any, index: number) => ({
-    name: item.category,
-    value: item.amount,
-    color: CHART_COLORS[index % CHART_COLORS.length]
-  })) || [];
-
-  const monthlyData = data?.monthly_spending?.map((item: any) => ({
-    month: item.month,
-    amount: item.amount
-  })) || [];
 
   return (
-    <div className="p-8">
-      {/* Page Header */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-sans mb-2 text-foreground">Dashboard Overview</h2>
-        <p className="text-muted-foreground text-sm">
-          Comprehensive analysis of your financial transactions
-        </p>
-      </div>
+    <div className="space-y-6 p-4 sm:space-y-8 sm:p-8">
+      <PageHeader title="Overview & budgets" subtitle="Spending so far, where it goes, and how this month is tracking against your budgets." />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KPICard label="Total spending" value={amount(s.total_spending)} hint={`${s.total_transactions} transactions`} />
+        <KPICard label="Money in" value={amount(s.total_income)} hint="income and refunds" />
+        <KPICard label="Avg monthly spending" value={amount(s.avg_monthly_spending ?? 0)} />
         <KPICard
-          label="Total Transactions"
-          value={data?.total_transactions?.toLocaleString() || "0"}
-          trend={data?.total_transactions > 0 ? { direction: "up", percentage: "Live" } : undefined}
-        />
-        <KPICard
-          label="Total Spend"
-          value={`$${(data?.total_spending || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-          trend={data?.total_spending > 0 ? { direction: "up", percentage: "Net" } : undefined}
-        />
-        <KPICard
-          label="Avg Monthly Spend"
-          value={`$${(data?.avg_monthly_spending || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-          trend={data?.avg_monthly_spending > 0 ? { direction: "down", percentage: "Avg" } : undefined}
-        />
-        <KPICard
-          label="Anomalies Detected"
-          value={data?.review_queue_size?.toString() || "0"}
-          trend={data?.review_queue_size > 0 ? { direction: "up", percentage: "Review" } : undefined}
-          variant={data?.review_queue_size > 0 ? "warning" : "default"}
+          label="Unusual to review" value={String(s.review_queue_size)}
+          hint={s.review_queue_size > 0 ? "see Unusual Transactions" : "nothing stood out"}
+          variant={s.review_queue_size > 0 ? "warning" : "default"}
         />
       </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-12 gap-4 mb-8">
-        {/* Monthly Spend Bar Chart */}
-        <div className="col-span-7 bg-card border border-border rounded-lg p-6">
-          <h3 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-6">
-            Monthly Spend Breakdown
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#30363D" />
-              <XAxis
-                dataKey="month"
-                stroke="#8B949E"
-                style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}
-              />
-              <YAxis
-                stroke="#8B949E"
-                style={{ fontSize: 12, fontFamily: "var(--font-mono)" }}
-                tickFormatter={(value) => `$${value / 1000}k`}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#161B22",
-                  border: "1px solid #30363D",
-                  borderRadius: "8px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12,
-                  color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-                }}
-                itemStyle={{ color: "#ffffff" }}
-                labelStyle={{ color: "#9ca3af", marginBottom: "4px" }}
-                formatter={(value: number) => [`$${value.toLocaleString()}`, "Amount"]}
-              />
-              <Bar dataKey="amount" fill="#00D4C8" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      <BudgetPanel uploadId={id} categoryChoices={categoryNames} />
 
-        {/* Category Distribution Pie Chart */}
-        <div className="col-span-5 bg-card border border-border rounded-lg p-6">
-          <h3 className="text-sm font-mono uppercase tracking-wider text-muted-foreground mb-6">
-            Category Distribution
-          </h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={categoryData}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={100}
-                paddingAngle={2}
-                dataKey="value"
-              >
-                {categoryData.map((entry: { color: string | undefined; }, index: any) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "#161B22",
-                  border: "1px solid #30363D",
-                  borderRadius: "8px",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 12,
-                  color: "#ffffff",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.5)"
-                }}
-                itemStyle={{ color: "#ffffff" }}
-                labelStyle={{ color: "#9ca3af", marginBottom: "4px" }}
-                formatter={(value: number) => `$${value.toLocaleString()}`}
-              />
-              <Legend
-                verticalAlign="bottom"
-                height={36}
-                iconType="circle"
-                wrapperStyle={{
-                  fontSize: 11,
-                  fontFamily: "var(--font-mono)",
-                }}
-              />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <Card>
+          <SectionTitle>Spending by category</SectionTitle>
+          {chartCategories.length === 0 ? <p className="text-sm text-muted-foreground">No spending to show.</p> : (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartCategories} layout="vertical" margin={{ left: 10, right: 16 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#30363D" horizontal={false} />
+                  <XAxis type="number" stroke="#ADBAC7" tick={{ fontSize: 11 }} />
+                  <YAxis type="category" dataKey="category" stroke="#ADBAC7" tick={{ fontSize: 11 }} width={110} />
+                  <Tooltip formatter={(value) => amount(Number(value))} contentStyle={{ background: "#161B22", border: "1px solid #30363D" }} />
+                  <Bar dataKey="amount" radius={[0, 4, 4, 0]}>
+                    {chartCategories.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+        <Card>
+          <SectionTitle>Spending by month</SectionTitle>
+          {monthly.length === 0 ? <p className="text-sm text-muted-foreground">No monthly data.</p> : (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={monthly}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#30363D" />
+                  <XAxis dataKey="month" stroke="#ADBAC7" tick={{ fontSize: 11 }} />
+                  <YAxis stroke="#ADBAC7" tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value) => amount(Number(value))} contentStyle={{ background: "#161B22", border: "1px solid #30363D" }} />
+                  <Bar dataKey="amount" fill="#00D4C8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
       </div>
 
-      {/* Recent Transactions Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <div className="p-6 border-b border-border">
-          <h3 className="text-sm font-mono uppercase tracking-wider text-muted-foreground">
-            Recent Transactions
-          </h3>
-        </div>
+      <Card>
+        <SectionTitle action={<Link to="/categories" className="text-xs text-primary underline-offset-4 hover:underline">Review categories</Link>}>Latest transactions</SectionTitle>
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-secondary sticky top-0">
-              <tr>
-                <th
-                  className="px-6 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                  onClick={() => handleSort("date")}
-                >
-                  <div className="flex items-center gap-2">
-                    Date
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                  onClick={() => handleSort("description")}
-                >
-                  <div className="flex items-center gap-2">
-                    Description
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-right text-xs font-mono uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                  onClick={() => handleSort("amount")}
-                >
-                  <div className="flex items-center justify-end gap-2">
-                    Amount
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
-                <th
-                  className="px-6 py-3 text-left text-xs font-mono uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                  onClick={() => handleSort("category")}
-                >
-                  <div className="flex items-center gap-2">
-                    Category
-                    <ArrowUpDown className="w-3 h-3" />
-                  </div>
-                </th>
+          <table className="w-full min-w-[560px] text-sm">
+            <thead>
+              <tr className="border-b border-border text-left font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                {([["date", "Date"], ["description", "Description"], ["category", "Category"], ["amount", "Amount"]] as [SortKey, string][]).map(([key, label]) => (
+                  <th key={key} className={`py-2 pr-3 ${key === "amount" ? "text-right" : ""}`}>
+                    <button onClick={() => toggleSort(key)} className="inline-flex items-center gap-1 hover:text-foreground">{label}<ArrowUpDown className="h-3 w-3" /></button>
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {sortedTransactions.map((transaction: { id: Key | null | undefined; date: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; description: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; amount: number; category: string | number | bigint | boolean | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | ReactPortal | Promise<string | number | bigint | boolean | ReactPortal | ReactElement<unknown, string | JSXElementConstructor<any>> | Iterable<ReactNode> | null | undefined> | null | undefined; }, index: number) => (
-                <tr
-                  key={transaction.id}
-                  className={`hover:bg-secondary/30 transition-colors ${index % 2 === 0 ? "bg-background" : "bg-secondary/10"
-                    }`}
-                >
-                  <td className="px-6 py-4 font-mono text-sm text-muted-foreground">
-                    {transaction.date}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-foreground">
-                    {transaction.description}
-                  </td>
-                  <td className="px-6 py-4 text-right font-mono text-sm text-foreground">
-                    ${transaction.amount.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono bg-primary/10 text-primary border border-primary/20">
-                      {transaction.category}
-                    </span>
-                  </td>
+              {rows.map((t) => (
+                <tr key={t.id}>
+                  <td className="whitespace-nowrap py-3 pr-3 text-muted-foreground">{shortDate(t.date)}</td>
+                  <td className="max-w-[16rem] truncate py-3 pr-3 text-foreground" title={t.description ?? ""}>{t.description ?? "(no description)"}</td>
+                  <td className="py-3 pr-3 text-muted-foreground">{t.category}</td>
+                  <td className="py-3 text-right font-mono">{amount(t.amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
