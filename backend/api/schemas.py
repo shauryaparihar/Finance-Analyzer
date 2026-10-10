@@ -23,6 +23,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     created_at: datetime
+    role: str = "user"
 
 
 class TokenOut(BaseModel):
@@ -143,3 +144,26 @@ class AnomaliesOut(BaseModel):
     decisions_outside_queue: int = 0  # earlier decisions on transactions that have since left the queue
     items: list[UnusualTransaction] = []
     disclaimer: str
+
+
+class AdminUserOut(BaseModel):
+    id: uuid.UUID
+    email: str
+    role: str
+    is_active: bool
+    created_at: datetime
+    upload_count: int
+
+
+class AdminUserUpdate(BaseModel):
+    is_active: bool
+
+
+class AdminOverview(BaseModel):
+    users_total: int
+    users_active: int
+    users_by_role: dict[str, int]
+    uploads_total: int
+    uploads_by_status: dict[str, int]
+    uploads_last_7_days: int
+    note: str

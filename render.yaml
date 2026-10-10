@@ -10,6 +10,8 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: DEMO_ENABLED  # one-click read-only guest login
+        value: "true"
       - key: JWT_SECRET
         generateValue: true
       - key: FRONTEND_URL

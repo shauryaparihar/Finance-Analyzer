@@ -5,10 +5,32 @@ export type ModuleName = "categorization" | "forecast" | "anomaly" | "summary";
 export type RunStatus = "pending" | "running" | "completed" | "failed" | "skipped";
 export type AmountConvention = "auto" | "expenses_positive" | "expenses_negative";
 
+export type Role = "user" | "admin" | "demo";
+
 export interface User {
   id: string;
   email: string;
   created_at: string;
+  role: Role;
+}
+
+export interface AdminOverview {
+  users_total: number;
+  users_active: number;
+  users_by_role: Record<string, number>;
+  uploads_total: number;
+  uploads_by_status: Record<string, number>;
+  uploads_last_7_days: number;
+  note: string;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: Role;
+  is_active: boolean;
+  created_at: string;
+  upload_count: number;
 }
 
 export interface TokenResponse {

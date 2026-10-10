@@ -12,6 +12,8 @@ interface AuthValue {
   /** True when the browser did not keep the login cookie, so a page reload will log the person out. */
   cookieWarning: boolean;
   login: (email: string, password: string) => Promise<void>;
+  /** Read-only guest session with the sample analysis (when the site offers it). */
+  loginAsDemo: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   logout: () => void;
   clearNotice: () => void;
@@ -58,8 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const signIn = useCallback(async (email: string, password: string) => {
-    const token = await api.login(email, password);
+  const startSession = useCallback(async (token: api.TokenResponseShape) => {
     api.tokenStore.set(token.access_token);
     try {
       setUser(await api.getMe());
@@ -72,6 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void api.verifySessionCookie().then((keptCookie) => setCookieWarning(!keptCookie));
   }, []);
 
+  const signIn = useCallback(async (email: string, password: string) => startSession(await api.login(email, password)), [startSession]);
+  const signInAsDemo = useCallback(async () => startSession(await api.demoLogin()), [startSession]);
+
   const value = useMemo<AuthValue>(
     () => ({
       user,
@@ -79,6 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       notice,
       cookieWarning,
       login: signIn,
+      loginAsDemo: signInAsDemo,
       register: async (email, password) => {
         await api.register(email, password);
         await signIn(email, password);

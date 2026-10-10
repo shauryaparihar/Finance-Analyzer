@@ -46,3 +46,21 @@ def get_current_user(
 
 def get_current_user_id(user: User = Depends(get_current_user)) -> uuid.UUID:
     return user.id
+
+
+def get_writer_user(user: User = Depends(get_current_user)) -> User:
+    """Like get_current_user, but the read-only demo account may not change anything."""
+    if user.role == "demo":
+        raise AppError(403, "READ_ONLY_ACCOUNT", "The demo account is read-only. Create an account to upload and edit.")
+    return user
+
+
+def get_writer_user_id(user: User = Depends(get_writer_user)) -> uuid.UUID:
+    return user.id
+
+
+def get_admin_user(user: User = Depends(get_current_user)) -> User:
+    if user.role != "admin":
+        # 404, not 403: the existence of the admin area is not revealed to other accounts
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    return user

@@ -12,6 +12,7 @@ RUN pip install -r requirements.txt
 COPY alembic.ini .
 COPY backend ./backend
 COPY data/sample_transactions.csv ./data/sample_transactions.csv
+COPY data/sample_descriptions_only.csv ./data/sample_descriptions_only.csv
 
 # Run as a non-root user.
 RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
