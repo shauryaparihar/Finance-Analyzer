@@ -1,0 +1,76 @@
+import { describe, expect, it } from "vitest";
+import { amount, dateTime, duration, percent, shortDate } from "./format";
+import { categoryOptions, checkReason, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
+import { hasResults, isActive, moduleRun, whyNoResult } from "./status";
+import type { ModuleStatus } from "../types";
+
+const row = (over: Partial<Parameters<typeof checkReason>[0]> = {}) => ({
+  category: "Groceries", predicted_category: "Groceries", review_required: false, prediction_confidence: 0.95, confirmed_category: null, ...over,
+});
+
+describe("formatting", () => {
+  it("formats amounts without assuming a currency", () => {
+    expect(amount(1234.5)).toBe("1,234.50");
+    expect(amount(-2000)).toBe("-2,000.00");
+    expect(amount(0)).toBe("0.00");
+  });
+  it("formats percentages, dates and durations", () => {
+    expect(percent(27.123)).toBe("27.1%");
+    expect(percent(-3.04, 0)).toBe("-3%");
+    expect(shortDate("2025-03-05")).toBe("05 Mar 2025");
+    expect(shortDate(null)).toBe("-");
+    expect(shortDate("garbage")).toBe("garbage");
+    expect(dateTime(null)).toBe("-");
+    expect(duration(450)).toBe("450 ms");
+    expect(duration(4031)).toBe("4.0 s");
+    expect(duration(null)).toBe("-");
+  });
+});
+
+describe("which rows to check", () => {
+  it("flags uncategorized rows and unsure guesses, and leaves confident or decided rows alone", () => {
+    expect(checkReason(row())).toBeNull();
+    expect(checkReason(row({ category: "Uncategorized", prediction_confidence: 0 }))).toBe("No category yet");
+    expect(checkReason(row({ review_required: true }))).toBe("No category yet");
+    expect(checkReason(row({ prediction_confidence: LOW_CONFIDENCE - 0.01 }))).toBe("Model is unsure");
+    expect(checkReason(row({ prediction_confidence: LOW_CONFIDENCE }))).toBeNull(); // exactly at the limit is fine
+    expect(checkReason(row({ prediction_confidence: null }))).toBeNull(); // the user's own label has no model confidence
+  });
+  it("stops flagging a row once the person has chosen its category", () => {
+    expect(checkReason(row({ category: "Uncategorized", confirmed_category: "Rent" }))).toBeNull();
+    expect(checkReason(row({ prediction_confidence: 0.2, confirmed_category: "Rent" }))).toBeNull();
+  });
+  it("only blames the model when its guess is the category being used", () => {
+    // the person's own file said "Mine"; the model's low-confidence guess for that row is irrelevant
+    expect(checkReason(row({ category: "Mine", predicted_category: "Shopping", prediction_confidence: 0.3 }))).toBeNull();
+    expect(usesModelGuess(row())).toBe(true);
+    expect(usesModelGuess(row({ category: "Mine", predicted_category: "Shopping" }))).toBe(false);
+    expect(usesModelGuess(row({ confirmed_category: "Rent" }))).toBe(false);
+  });
+  it("shows confidence as a whole-number percentage", () => {
+    expect(confidenceLabel(0.934)).toBe("93%");
+    expect(confidenceLabel(null)).toBe("-");
+  });
+  it("offers the model's categories plus the user's own, sorted, without duplicates or Uncategorized", () => {
+    expect(categoryOptions(["Rent", "Groceries"], ["Groceries", "My Label", "Uncategorized"])).toEqual(["Groceries", "My Label", "Rent"]);
+  });
+});
+
+describe("upload status", () => {
+  it("knows which statuses keep polling and which have results", () => {
+    expect(["queued", "processing"].every((s) => isActive(s as never))).toBe(true);
+    expect(["completed", "partial", "failed"].some((s) => isActive(s as never))).toBe(false);
+    expect(hasResults("completed") && hasResults("partial")).toBe(true);
+    expect(hasResults("failed") || hasResults("queued") || hasResults("processing")).toBe(false);
+  });
+  const modules = (status: ModuleStatus["status"], message: string | null): ModuleStatus[] => [
+    { module: "forecast", status, duration_ms: null, model_version: null, error_code: null, error_message: message, started_at: null, finished_at: null },
+  ];
+  it("explains a missing result from what the backend recorded", () => {
+    expect(whyNoResult(modules("failed", "Forecast failed."), "forecast")).toBe("Forecast failed.");
+    expect(whyNoResult(modules("skipped", "Need 90 days."), "forecast")).toBe("Need 90 days.");
+    expect(whyNoResult(modules("running", null), "forecast")).toBe("This step has not finished yet.");
+    expect(whyNoResult([], "anomaly")).toBe("No result is available for this upload.");
+    expect(moduleRun(modules("completed", null), "forecast")?.status).toBe("completed");
+  });
+});
