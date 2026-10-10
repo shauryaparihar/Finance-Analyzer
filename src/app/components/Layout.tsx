@@ -53,7 +53,7 @@ export function Layout() {
           <div className="rounded-lg bg-secondary p-3">
             <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">Signed in as</p>
             <p className="mb-3 truncate text-sm text-foreground" title={user?.email}>{user?.email}</p>
-            <button onClick={logout} className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
+            <button onClick={() => logout()} className="flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground">
               <LogOut className="h-4 w-4" /> Log out
             </button>
           </div>
@@ -64,7 +64,7 @@ export function Layout() {
       <header className="border-b border-border bg-sidebar md:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-3">
           <Brand />
-          <button onClick={logout} className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground" aria-label="Log out">
+          <button onClick={() => logout()} className="flex shrink-0 items-center gap-1 text-sm text-muted-foreground hover:text-foreground" aria-label="Log out">
             <LogOut className="h-4 w-4" /> Log out
           </button>
         </div>
