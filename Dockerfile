@@ -20,4 +20,4 @@ USER appuser
 
 EXPOSE 8000
 # Apply any pending migrations (safe to repeat), then start the API. Hosts that set PORT (Render) override 8000.
-CMD ["sh", "-c", "alembic upgrade head && uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-config backend/logging_config.json --no-access-log"]
+CMD ["sh", "-c", "python -m backend.migrate && uvicorn backend.main:app --host 0.0.0.0 --port ${PORT:-8000} --log-config backend/logging_config.json --no-access-log"]
