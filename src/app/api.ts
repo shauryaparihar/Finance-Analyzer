@@ -129,8 +129,13 @@ async function attemptRefresh(attempt: number, clearOnDenied = true): Promise<Re
  * Returns false only when the server answered but did not recognise the cookie. Never ends the current session.
  */
 export async function verifySessionCookie(): Promise<boolean> {
-  const outcome = await (refreshing ?? attemptRefresh(0, false));
-  return outcome !== "denied";
+  // A read-only question: refreshing here would rotate the token while the person might reload, losing the new cookie.
+  try {
+    const response = await fetch(`${API_BASE}/auth/session-check`, { method: "POST", headers: { [CSRF_HEADER]: "1" }, credentials: "same-origin" });
+    return response.status !== 401;
+  } catch {
+    return true; // could not reach the server: not evidence that the cookie is missing
+  }
 }
 
 async function request<T>(path: string, options: RequestOptions = {}, alreadyRetried = false): Promise<T> {

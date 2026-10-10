@@ -3,6 +3,7 @@ Refresh tokens: random secrets kept in an HttpOnly cookie, stored in the databas
 
   issue()   start a new login session (a "family") and return the raw token to put in the cookie
   rotate()  exchange a valid token for the next one in its family; detects replay of an already-used token
+  is_valid()  read-only check that a token is a live one (changes nothing)
   revoke()  end a session (logout)
 """
 import hashlib
@@ -104,6 +105,17 @@ def rotate(db: Session, raw: Optional[str]) -> Rotation:
     row.revoked_at, row.revoke_reason, row.replaced_by_id = now, "rotated", new_row.id
     db.commit()
     return Rotation("ok", row.user_id, new_raw, row.family_id)
+
+
+def is_valid(db: Session, raw: Optional[str]) -> bool:
+    """True if this is a current, unexpired token. Unlike rotate() it never changes anything, so asking is free."""
+    if not raw:
+        return False
+    row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_token(raw)))
+    if row is None or row.revoked_at is not None:
+        return False
+    now = _db_now(db)
+    return row.expires_at > now and row.family_expires_at > now
 
 
 def revoke(db: Session, raw: Optional[str]) -> bool:
