@@ -85,6 +85,11 @@ A probe of 2,000 generated nonsense descriptions (random letters and numbers, wi
 - **Model confidence is not calibrated probability**; treat it as a ranking signal.
 - Retraining is manual. Corrections made in the app are stored but **not** used to retrain the model.
 
+## Real-world check (not yet done)
+
+The model has **not** been measured on real bank statements. The plan is to score it on 150-300 of the owner's own transactions, labelled by the owner before seeing any model guess, with `python -m backend.ml.evaluate_real` (aggregates only; the data stays in the git-ignored `data/private/` folder). Until that has been run, **every figure in this card is a synthetic-data figure and nothing here is an estimate of real-world accuracy.** When it is run, only aggregate results (sample size, date, macro-F1 against the rules baseline, share auto-categorized and its accuracy, share blocked by the guard) will be added here, labelled as one person's small, non-representative sample.
+
+
 ## Operation and safety
 
 - Training is offline only; the API never trains. The artifact (`backend/artifacts/categorizer/model.joblib`) and its `metadata.json` ship with the application.

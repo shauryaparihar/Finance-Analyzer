@@ -1,5 +1,7 @@
 import { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as api from "../api";
+import { useIdleLogout } from "../hooks/useIdleLogout";
+import { IDLE_NOTICE } from "../lib/idle";
 import type { User } from "../types";
 
 type AuthStatus = "loading" | "authenticated" | "anonymous";
@@ -15,7 +17,7 @@ interface AuthValue {
   /** Read-only guest session with the sample analysis (when the site offers it). */
   loginAsDemo: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: (reason?: "idle") => void;
   clearNotice: () => void;
 }
 
@@ -73,6 +75,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void api.verifySessionCookie().then((keptCookie) => setCookieWarning(!keptCookie));
   }, []);
 
+  const endSession = useCallback((reason?: "idle") => {
+    void api.logout().catch(() => undefined); // revoke the session on the server (best effort)
+    api.tokenStore.clear();
+    setUser(null);
+    setStatus("anonymous");
+    setNotice(reason === "idle" ? IDLE_NOTICE : null);
+    setCookieWarning(false);
+  }, []);
+
+  // No activity for 15 minutes: end the session on the server too, so the refresh cookie stops working as well.
+  const onIdle = useCallback(() => endSession("idle"), [endSession]);
+  useIdleLogout(status === "authenticated", onIdle);
+
   const signIn = useCallback(async (email: string, password: string) => startSession(await api.login(email, password)), [startSession]);
   const signInAsDemo = useCallback(async () => startSession(await api.demoLogin()), [startSession]);
 
@@ -88,17 +103,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.register(email, password);
         await signIn(email, password);
       },
-      logout: () => {
-        void api.logout().catch(() => undefined); // revoke the session on the server (best effort)
-        api.tokenStore.clear();
-        setUser(null);
-        setStatus("anonymous");
-        setNotice(null);
-        setCookieWarning(false);
-      },
+      logout: endSession,
       clearNotice: () => setNotice(null),
     }),
-    [user, status, notice, cookieWarning, signIn],
+    [user, status, notice, cookieWarning, signIn, signInAsDemo, endSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
