@@ -34,7 +34,13 @@ export function checkReason(row: Reviewable): string | null {
 }
 
 export function confidenceLabel(confidence: number | null): string {
-  return confidence === null ? "-" : `${Math.round(confidence * 100)}%`;
+  return confidence === null ? "No guess" : `${Math.round(confidence * 100)}%`;
+}
+
+/** What the confidence column says: the model's confidence when its guess is what is shown, otherwise why there is none. */
+export function confidenceCell(row: Reviewable): string {
+  if (usesModelGuess(row)) return confidenceLabel(row.prediction_confidence);
+  return row.prediction_confidence === null ? "No guess" : "Not used";
 }
 
 /** Category choices for a dropdown: the model's categories plus any the user already has, without duplicates. */

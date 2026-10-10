@@ -4,7 +4,7 @@ import { correctCategory, friendlyMessage, getCategories, getTransactions } from
 import { useAppContext } from "../../context/AppContext";
 import { useResource } from "../../hooks/useResource";
 import { amount, shortDate } from "../../lib/format";
-import { categoryOptions, categorySource, checkReason, confidenceLabel } from "../../lib/review";
+import { categoryOptions, categorySource, checkReason, confidenceCell } from "../../lib/review";
 import type { TransactionRow } from "../../types";
 import { Card, ErrorNotice, Notice, PageHeader, Pill, Spinner } from "../common";
 import { Button } from "../ui/button";
@@ -105,7 +105,7 @@ function CategoriesContent() {
                       <td className="max-w-[14rem] truncate px-4 py-3 text-foreground" title={row.description ?? ""}>{row.description ?? "(no description)"}</td>
                       <td className="px-4 py-3 text-right font-mono">{amount(row.amount)}</td>
                       <td className="px-4 py-3"><CategoryCell row={row} options={options} busy={pendingId === row.id} onChange={(c) => void change(row, c)} /></td>
-                      <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">{categorySource(row) === "model" ? confidenceLabel(row.prediction_confidence) : "-"}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-muted-foreground">{confidenceCell(row)}</td>
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         {reason ? <Pill tone="warn">Check this: {reason}</Pill> : <SourcePill row={row} />}
                       </td>
