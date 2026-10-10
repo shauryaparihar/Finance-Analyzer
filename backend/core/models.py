@@ -34,6 +34,7 @@ UPLOAD_STATUSES = ("queued", "processing", "completed", "partial", "failed")
 MODULES = ("categorization", "forecast", "anomaly", "summary")
 RUN_STATUSES = ("pending", "running", "completed", "failed", "skipped")
 REVIEW_STATUSES = ("unreviewed", "confirmed", "dismissed")
+ROLES = ("user", "admin", "demo")  # demo = read-only guest account
 
 
 def _in(column: str, values: tuple[str, ...]) -> str:
@@ -42,12 +43,14 @@ def _in(column: str, values: tuple[str, ...]) -> str:
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (CheckConstraint(_in("role", ROLES), name="ck_users_role"),)
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     email: Mapped[str] = mapped_column(String(320), nullable=False, unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
+    role: Mapped[str] = mapped_column(String(10), nullable=False, default="user", server_default="user")
 
     uploads: Mapped[list["Upload"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     budgets: Mapped[list["Budget"]] = relationship(back_populates="user", cascade="all, delete-orphan")

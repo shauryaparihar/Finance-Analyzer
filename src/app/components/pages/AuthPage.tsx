@@ -7,7 +7,7 @@ import { AuthForm } from "../AuthForm";
 import { ErrorNotice, Notice, Spinner } from "../common";
 
 export function AuthPage({ mode }: { mode: "login" | "register" }) {
-  const { status, notice, login, register, clearNotice } = useAuth();
+  const { status, notice, login, loginAsDemo, register, clearNotice } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState("");
@@ -68,6 +68,27 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           {notice && <Notice tone="warn">{notice}</Notice>}
           {formError !== null && <ErrorNotice error={formError} />}
         </AuthForm>
+        {isLogin && (
+          <div className="mt-4 text-center">
+            <button
+              type="button" disabled={busy} className="text-sm text-primary underline-offset-4 hover:underline disabled:opacity-60"
+              onClick={async () => {
+                setFormError(null);
+                setBusy(true);
+                try {
+                  await loginAsDemo();
+                  navigate(destination, { replace: true });
+                } catch (e) {
+                  setFormError(e);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Just looking? Try the read-only demo
+            </button>
+          </div>
+        )}
         <p className="mt-4 text-center text-sm text-muted-foreground">
           {isLogin ? "New here?" : "Already have an account?"}{" "}
           <Link to={isLogin ? "/register" : "/login"} onClick={clearNotice} className="text-primary underline-offset-4 hover:underline">

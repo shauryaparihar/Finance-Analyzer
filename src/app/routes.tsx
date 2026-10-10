@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
 import { RequireAuth } from "./components/RequireAuth";
+import { AdminPage } from "./components/pages/AdminPage";
 import { AuthPage } from "./components/pages/AuthPage";
 import { CategoriesPage } from "./components/pages/CategoriesPage";
 import { ForecastPage } from "./components/pages/ForecastPage";
@@ -24,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "forecast", Component: ForecastPage },
       { path: "unusual", Component: UnusualPage },
       { path: "categories", Component: CategoriesPage },
+      { path: "admin", Component: AdminPage },
       { path: "*", element: <Navigate to="/" replace /> },
     ],
   },

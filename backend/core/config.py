@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     refresh_grace_seconds: int = 10  # a just-rotated token presented again within this window is a race, not theft
     cookie_secure: bool | None = None  # None: Secure cookies in production, plain in local development
 
+    # One-click read-only guest login (POST /api/auth/demo). Off unless a deployment turns it on.
+    demo_enabled: bool = False
+
     # Analysis jobs and logging
     analysis_workers: int = 2  # analyses that may run at once in this process
     job_poll_seconds: float = 1.0  # how often an idle worker looks for queued work

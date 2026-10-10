@@ -1,5 +1,5 @@
 import type {
-  Anomalies, AmountConvention, ApiErrorBody, Budget, BudgetRisk, CategoryList, Forecast, Summary,
+  AdminOverview, AdminUser, Anomalies, AmountConvention, ApiErrorBody, Budget, BudgetRisk, CategoryList, Forecast, Summary,
   TokenResponse, TransactionRow, TransactionsPage, UploadAccepted, UploadItem, UploadStatusResponse, User,
   Wrapped, ReviewStatus,
 } from "./types";
@@ -190,7 +190,16 @@ export const register = (email: string, password: string) =>
   request<User>("/auth/register", { method: "POST", json: { email, password }, auth: false });
 export const login = (email: string, password: string) =>
   request<TokenResponse>("/auth/login", { method: "POST", json: { email, password }, auth: false });
+/** One-click read-only guest session (only when the deployment turns it on). */
+export type TokenResponseShape = TokenResponse;
+export const demoLogin = () => request<TokenResponse>("/auth/demo", { method: "POST", auth: false, csrf: true });
 export const getMe = () => request<User>("/auth/me");
+
+// --- admin (administrator accounts only; counts and account details, never anyone's transactions) ---
+export const getAdminOverview = () => request<AdminOverview>("/admin/overview");
+export const listAdminUsers = () => request<AdminUser[]>("/admin/users");
+export const setUserActive = (id: string, isActive: boolean) =>
+  request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", json: { is_active: isActive } });
 /** End the login session on the server (revokes the refresh cookie's session). */
 export const logout = () => request<void>("/auth/logout", { method: "POST", auth: false, csrf: true });
 
