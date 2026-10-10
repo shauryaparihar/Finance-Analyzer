@@ -129,7 +129,7 @@ Details, numbers and limits are in [`docs/model_card.md`](docs/model_card.md). I
 
 Not included: network time, login, database reads and writes, and the browser. The forecast re-trains a random forest once per backtest window; it now scores only the 12 most recent windows (before this cap the same file took 17.5 s for the forecast and 18.3 s overall, because the cost grew with the years of history). Files with less than about 12 windows of history, such as the sample files, are unaffected.
 
-**On the free Render instance** a single run of the same file, *before* the cap, took 511.6 s (forecast 480.6 s) and ended with status "failed" (probably a missed heartbeat on a very slow, shared CPU; the cause was not confirmed because server logs were not available). The cap and a longer heartbeat limit (`JOB_STALE_AFTER_SECONDS=600` in `render.yaml`) are meant to fix that; the live server has not been re-measured since.
+**On the free Render instance** (one run each, throwaway account, same 50,000-row file; no median or p95 claimed): *before* the cap the job took 511.6 s (forecast 480.6 s) and ended "failed" (probably a missed heartbeat on a very slow, shared CPU; the cause was not confirmed because server logs were not available). *After* the cap and the longer heartbeat limit (`JOB_STALE_AFTER_SECONDS=600` in `render.yaml`) the same upload finished with status "completed" in 163.2 s (categorization 22.8 s, forecast 68.4 s, unusual ranking 23.3 s, summary 1.3 s, plus 7 s to accept the upload). The free server is roughly 20 to 30 times slower than the laptop on this job.
 
 ## Security and privacy design
 
