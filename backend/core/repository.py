@@ -703,11 +703,27 @@ def resolve_google_user(db: Session, google_sub: str, email: str) -> tuple[User,
             raise ValueError("the demo account cannot be linked")
         existing.google_sub = google_sub
         existing.password_hash = UNUSABLE_PASSWORD_HASH
+        existing.email_verified_at = existing.email_verified_at or func.now()  # Google vouches for the address
         db.commit()
         db.refresh(existing)
         return existing, True
-    user = User(email=email.strip().lower(), password_hash=UNUSABLE_PASSWORD_HASH, google_sub=google_sub)
+    user = User(email=email.strip().lower(), password_hash=UNUSABLE_PASSWORD_HASH, google_sub=google_sub, email_verified_at=func.now())
     db.add(user)
     db.commit()
     db.refresh(user)
     return user, False
+
+
+def set_password_and_verify(db: Session, user_id: uuid.UUID, password_hash: str) -> None:
+    """After a successful reset by emailed link: new password, and the address is now proven to be theirs."""
+    user = db.get(User, user_id)
+    user.password_hash = password_hash
+    user.email_verified_at = user.email_verified_at or func.now()
+    db.commit()
+
+
+def mark_email_verified(db: Session, user_id: uuid.UUID) -> None:
+    user = db.get(User, user_id)
+    if user.email_verified_at is None:
+        user.email_verified_at = func.now()
+        db.commit()

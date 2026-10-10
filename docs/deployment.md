@@ -41,3 +41,12 @@ Free hosting sleeps when idle (the first request can take about a minute). Migra
 ## Administrators
 
 There is deliberately no way to make yourself an administrator from the website. Promote an account in the database (Neon SQL editor): `UPDATE users SET role = 'admin' WHERE email = 'you@example.com';`
+
+## Email (password reset and address confirmation)
+
+Off by default (`MAIL_BACKEND=off`): the website hides the "Forgot your password?" link and the confirmation banner.
+
+- **Local development:** `MAIL_BACKEND=console` prints each message (with its one-time link) in the API log.
+- **Deployed:** `MAIL_BACKEND=resend` sends through [Resend](https://resend.com)'s web API over HTTPS. Free hosting such as Render blocks the usual SMTP ports, which is why SMTP is not used. Create a Resend account and API key, put it in Render as `RESEND_API_KEY`, and set `MAIL_BACKEND=resend`.
+- **Who can receive mail:** a new Resend account can normally send only to its own owner's address until you verify a sending domain you control; check Resend's current rules. Without a domain the feature can be demonstrated with the account owner's address only. `MAIL_FROM` must be an address Resend allows for your account.
+- Links work once and expire after `EMAIL_TOKEN_MINUTES` (default 30); only a hash of each link is stored.
