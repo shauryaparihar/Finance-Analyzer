@@ -1,6 +1,9 @@
+import { useState } from "react";
 import { Link, NavLink, Outlet } from "react-router";
 import { AlertTriangle, BarChart3, LogOut, ShieldCheck, Tags, TrendingUp, Upload } from "lucide-react";
+import { getProviders, sendVerification } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { useResource } from "../hooks/useResource";
 import { CookieNotice, Notice } from "./common";
 import { cn } from "./ui/utils";
 
@@ -25,6 +28,8 @@ const adminItem = { path: "/admin", label: "Admin", icon: ShieldCheck, end: fals
 
 export function Layout() {
   const { user, logout, cookieWarning } = useAuth();
+  const providers = useResource(() => getProviders().catch(() => ({ google: false, demo: false, email: false })), []).data;
+  const [verifySent, setVerifySent] = useState(false);
   const items = user?.role === "admin" ? [...navItems, adminItem] : navItems;
 
   return (
@@ -97,6 +102,16 @@ export function Layout() {
             <Notice tone="info">
               You are using the <strong>read-only demo</strong>: look around, but uploading, editing and deleting are switched off.{" "}
               <button onClick={() => logout()} className="underline">Log out to create your own account</button>.
+            </Notice>
+          </div>
+        )}
+        {providers?.email && user && !user.email_verified && user.role === "user" && (
+          <div className="px-4 pt-4 sm:px-8 sm:pt-6">
+            <Notice tone="info">
+              Please confirm your email address with the link we sent you.{" "}
+              {verifySent ? "A new email is on its way." : (
+                <button onClick={() => { setVerifySent(true); void sendVerification().catch(() => undefined); }} className="underline">Send it again</button>
+              )}
             </Notice>
           </div>
         )}

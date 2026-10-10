@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
+    # Email (password reset and address verification). "console" only prints, for local development; "resend" sends
+    # through Resend's web API (port 443, which free hosts allow); "off" disables the email features.
+    mail_backend: str = "off"
+    resend_api_key: str = ""
+    mail_from: str = "FinSight <onboarding@resend.dev>"
+    email_token_minutes: int = 30
+
     # One-click read-only guest login (POST /api/auth/demo). Off unless a deployment turns it on.
     demo_enabled: bool = False
 

@@ -9,8 +9,16 @@ from sqlalchemy.orm import Session
 
 from backend.api.deps import get_current_user
 from backend.api.errors import AppError
-from backend.api.schemas import LoginRequest, RegisterRequest, TokenOut, UserOut
-from backend.core import refresh_tokens
+from backend.api.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenOut,
+    UserOut,
+    VerifyEmailRequest,
+)
+from backend.core import email_tokens, mail, refresh_tokens
 from backend.core import repository as repo
 from backend.core.config import cookie_secure_enabled, cors_origins, settings
 from backend.core.database import get_db
@@ -57,7 +65,22 @@ def _require_same_site_request(request: Request) -> None:
 
 
 def _user_out(user: User) -> UserOut:
-    return UserOut(id=user.id, email=user.email, created_at=user.created_at, role=user.role)
+    return UserOut(id=user.id, email=user.email, created_at=user.created_at, role=user.role, email_verified=user.email_verified_at is not None)
+
+
+def _send_verification(db: Session, user: User) -> None:
+    """Email the address-verification link. Failure to send never blocks the caller: the person can ask again."""
+    if not mail.enabled() or user.role == "demo" or user.email_verified_at is not None:
+        return
+    try:
+        raw = email_tokens.issue(db, user.id, "verify")
+        mail.send(
+            user.email, "Confirm your email address for FinSight",
+            f"Open this link to confirm your email address (it works once and expires in {settings.email_token_minutes} minutes):\n\n"
+            f"{mail.link('/verify-email', raw)}\n\nIf you did not create this account, ignore this email.",
+        )
+    except mail.MailError as e:
+        log_event(logger, logging.WARNING, "verification_email_failed", reason=str(e))
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -69,6 +92,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
     except IntegrityError:  # two simultaneous registrations for the same email
         db.rollback()
         raise AppError(409, "EMAIL_ALREADY_REGISTERED", "An account with this email already exists.")
+    _send_verification(db, user)
     return _user_out(user)
 
 
@@ -86,12 +110,68 @@ def login(body: LoginRequest, response: Response, db: Session = Depends(get_db))
     )
 
 
+@router.post("/forgot-password", status_code=202)
+def forgot_password(body: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """Email a one-time link for choosing a new password. The answer is identical whether or not the address has an
+    account, so this cannot be used to find out who is registered."""
+    if not mail.enabled():
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    _require_same_site_request(request)
+    user = repo.get_user_by_email(db, body.email)
+    if user is not None and user.is_active and user.role != "demo" and not email_tokens.recently_issued(db, user.id, "reset"):
+        try:
+            raw = email_tokens.issue(db, user.id, "reset")
+            mail.send(
+                user.email, "Reset your FinSight password",
+                f"Open this link to choose a new password (it works once and expires in {settings.email_token_minutes} minutes):\n\n"
+                f"{mail.link('/reset-password', raw)}\n\nIf you did not ask for this, ignore this email: your password has not changed.",
+            )
+        except mail.MailError as e:
+            log_event(logger, logging.WARNING, "reset_email_failed", reason=str(e))
+    return {"message": "If that address has an account, an email with a reset link is on its way."}
+
+
+@router.post("/reset-password", status_code=204)
+def reset_password(body: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    if not mail.enabled():
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    _require_same_site_request(request)
+    user_id = email_tokens.consume(db, body.token, "reset")
+    if user_id is None:
+        raise AppError(400, "INVALID_LINK", "This link is not valid any more. Ask for a new one.")
+    repo.set_password_and_verify(db, user_id, hash_password(body.password))
+    refresh_tokens.revoke_all_for_user(db, user_id, "password_reset")  # anyone already logged in is logged out
+    log_event(logger, logging.INFO, "password_reset", user_id=str(user_id))
+    return Response(status_code=204)
+
+
+@router.post("/send-verification", status_code=202)
+def send_verification(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    if not mail.enabled():
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    if user.email_verified_at is None and not email_tokens.recently_issued(db, user.id, "verify"):
+        _send_verification(db, user)
+    return {"message": "If your address is not confirmed yet, an email is on its way."}
+
+
+@router.post("/verify-email", status_code=204)
+def verify_email(body: VerifyEmailRequest, request: Request, db: Session = Depends(get_db)):
+    if not mail.enabled():
+        raise AppError(404, "NOT_FOUND", "Not found.")
+    _require_same_site_request(request)
+    user_id = email_tokens.consume(db, body.token, "verify")
+    if user_id is None:
+        raise AppError(400, "INVALID_LINK", "This link is not valid any more. Ask for a new one.")
+    repo.mark_email_verified(db, user_id)
+    return Response(status_code=204)
+
+
 @router.get("/providers")
 def providers():
     """Which extra ways to sign in this deployment offers (the website shows only those)."""
     from backend.core import google_oauth
 
-    return {"google": google_oauth.enabled(), "demo": settings.demo_enabled}
+    return {"google": google_oauth.enabled(), "demo": settings.demo_enabled, "email": mail.enabled()}
 
 
 @router.post("/demo", response_model=TokenOut)

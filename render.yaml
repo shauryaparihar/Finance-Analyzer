@@ -20,5 +20,11 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      - key: MAIL_BACKEND  # off | resend; see docs/deployment.md
+        value: "off"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        sync: false
       - key: DATABASE_URL
         sync: false  # paste the PostgreSQL connection string in the Render dashboard; never commit it

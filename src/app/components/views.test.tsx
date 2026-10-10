@@ -6,6 +6,7 @@ import { AuthForm } from "./AuthForm";
 import { CookieNotice } from "./common";
 import { KPICard } from "./KPICard";
 import { ModuleProgress } from "./ModuleProgress";
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "./pages/EmailPages";
 import { ForecastView } from "./pages/ForecastPage";
 
 const completed = (over: Partial<ForecastCompleted> = {}): ForecastCompleted => ({
@@ -143,5 +144,21 @@ describe("cookie warning", () => {
     expect(html).toContain("did not keep the login cookie");
     expect(html).toContain("logged out when you reload");
     expect(html).toContain("same web address");
+  });
+});
+
+describe("email pages", () => {
+  const page = (element: JSX.Element, url = "/") => renderToStaticMarkup(<MemoryRouter initialEntries={[url]}>{element}</MemoryRouter>);
+  it("asks for an email address and never says whether an account exists", () => {
+    const html = page(<ForgotPasswordPage />);
+    expect(html).toContain("Send reset link");
+    expect(html.toLowerCase()).not.toContain("no account");
+  });
+  it("asks for the new password twice and explains an incomplete link", () => {
+    expect(page(<ResetPasswordPage />, "/reset-password?token=abcdefghijklmnop")).toContain("Confirm new password");
+    expect(page(<ResetPasswordPage />, "/reset-password")).toContain("incomplete");
+  });
+  it("shows a clear result page for the confirmation link", () => {
+    expect(page(<VerifyEmailPage />, "/verify-email")).toContain("not valid any more");
   });
 });
