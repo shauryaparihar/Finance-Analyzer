@@ -3,10 +3,7 @@
     {
       "source": "/api/:path*",
       "destination": "https://finance-analyzer-pdup.onrender.com/api/:path*"
-    }
-  ],
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+    },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
   ]
 }
