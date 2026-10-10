@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { amount, dateTime, duration, monthLabel, percent, shortDate } from "./format";
-import { categoryOptions, categorySource, checkReason, confidenceLabel, LOW_CONFIDENCE, usesModelGuess } from "./review";
+import { categoryOptions, categorySource, checkReason, confidenceLabel, LOW_CONFIDENCE, reviewedCount, shownStatus, usesModelGuess, withoutDecision } from "./review";
 import { hasResults, isActive, moduleRun, whyNoResult } from "./status";
 import type { ModuleStatus } from "../types";
 
@@ -84,5 +84,32 @@ describe("upload status", () => {
     expect(whyNoResult(modules("running", null), "forecast")).toBe("This step has not finished yet.");
     expect(whyNoResult([], "anomaly")).toBe("No result is available for this upload.");
     expect(moduleRun(modules("completed", null), "forecast")?.status).toBe("completed");
+  });
+});
+
+describe("unusual-transaction decisions shown before the server answers", () => {
+  const items = [
+    { transaction_id: 1, review_status: "unreviewed" as const },
+    { transaction_id: 2, review_status: "confirmed" as const },
+  ];
+
+  it("shows a decision still being saved instead of the server's last answer", () => {
+    expect(shownStatus(items[0], {})).toBe("unreviewed");
+    expect(shownStatus(items[0], { 1: "dismissed" })).toBe("dismissed");
+    expect(shownStatus(items[1], { 2: "unreviewed" })).toBe("unreviewed"); // Undo shows at once too
+  });
+
+  it("counts reviewed items using the decisions being saved", () => {
+    expect(reviewedCount(items, {})).toBe(1);
+    expect(reviewedCount(items, { 1: "confirmed" })).toBe(2);
+    expect(reviewedCount(items, { 2: "unreviewed" })).toBe(0);
+  });
+
+  it("goes back to the server's answer when a save fails, without touching other decisions", () => {
+    const saving = { 1: "confirmed" as const, 2: "unreviewed" as const };
+    const after = withoutDecision(saving, 1);
+    expect(after).toEqual({ 2: "unreviewed" });
+    expect(saving).toEqual({ 1: "confirmed", 2: "unreviewed" }); // original not modified
+    expect(shownStatus(items[0], after)).toBe("unreviewed");
   });
 });
