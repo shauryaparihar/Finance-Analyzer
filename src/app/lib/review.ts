@@ -40,7 +40,9 @@ export function confidenceLabel(confidence: number | null): string {
 /** What the confidence column says: the model's confidence when its guess is what is shown, otherwise why there is none. */
 export function confidenceCell(row: Reviewable): string {
   if (usesModelGuess(row)) return confidenceLabel(row.prediction_confidence);
-  return row.prediction_confidence === null ? "No guess" : "Not used";
+  // The model scores every row, but for blank or unrecognised text it declines to name a category (Uncategorized).
+  if (row.prediction_confidence === null || row.predicted_category === null || row.predicted_category === UNCATEGORIZED) return "No guess";
+  return "Not used";
 }
 
 /** Category choices for a dropdown: the model's categories plus any the user already has, without duplicates. */

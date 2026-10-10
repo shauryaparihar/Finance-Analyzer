@@ -94,6 +94,8 @@ describe("the model confidence column", () => {
   it("says there was no guess when the model made none (blank or unrecognised text)", () => {
     expect(confidenceCell(row({ category: "Groceries", confirmed_category: "Groceries", predicted_category: null, prediction_confidence: null }))).toBe("No guess");
     expect(confidenceCell(row({ category: "Uncategorized", predicted_category: "Uncategorized", prediction_confidence: null }))).toBe("No guess");
+    // the model still scores such a row, but declined to name a category: that is "no guess", not "not used"
+    expect(confidenceCell(row({ category: "Uncategorized", predicted_category: "Uncategorized", prediction_confidence: 0.31, review_required: true }))).toBe("No guess");
   });
   it("says the guess was not used when the person's choice or their file's category is shown instead", () => {
     expect(confidenceCell(row({ category: "Fixed", confirmed_category: "Fixed", predicted_category: "Groceries", prediction_confidence: 0.9 }))).toBe("Not used");

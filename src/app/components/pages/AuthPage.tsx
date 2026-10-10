@@ -75,7 +75,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           </Link>
         </p>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          This is a demo project, so please use practice data. Everything you upload stays until you delete that analysis.
+          Everything you upload stays until you delete that analysis.
         </p>
       </div>
     </div>
