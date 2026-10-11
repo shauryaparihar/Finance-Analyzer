@@ -156,6 +156,7 @@ describe("email pages", () => {
   });
   it("asks for the new password twice and explains an incomplete link", () => {
     expect(page(<ResetPasswordPage />, "/reset-password?token=abcdefghijklmnop")).toContain("Confirm new password");
+    expect(page(<ResetPasswordPage />, "/reset-password?token=abcdefghijklmnop")).toContain("Show password");
     expect(page(<ResetPasswordPage />, "/reset-password")).toContain("incomplete");
   });
   it("shows a clear result page for the confirmation link", () => {

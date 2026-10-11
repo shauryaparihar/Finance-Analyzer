@@ -1,6 +1,6 @@
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
-import { Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { forgotPassword, friendlyMessage, resetPassword, verifyEmail } from "../../api";
 import { MIN_PASSWORD_LENGTH } from "../../lib/validation";
 import { Notice } from "../common";
@@ -67,6 +67,7 @@ export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [visible, setVisible] = useState(false); // lets the person check what they typed; never remembered
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,12 +94,20 @@ export function ResetPasswordPage() {
         {error && <Notice tone="warn">{error}</Notice>}
         <div>
           <label htmlFor="password" className="mb-1 block text-sm text-muted-foreground">New password</label>
-          <input id="password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className={field} />
+          <div className="relative">
+            <input id="password" type={visible ? "text" : "password"} autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} className={`${field} pr-10`} />
+            <button
+              type="button" onClick={() => setVisible((v) => !v)} aria-pressed={visible} aria-label={visible ? "Hide password" : "Show password"}
+              title={visible ? "Hide password" : "Show password"} className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
+            >
+              {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">At least {MIN_PASSWORD_LENGTH} characters.</p>
         </div>
         <div>
           <label htmlFor="confirm" className="mb-1 block text-sm text-muted-foreground">Confirm new password</label>
-          <input id="confirm" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} />
+          <input id="confirm" type={visible ? "text" : "password"} autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={field} />
         </div>
         <Button type="submit" disabled={busy} className="w-full">{busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save new password</Button>
       </form>
