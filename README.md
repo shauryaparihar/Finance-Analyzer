@@ -14,6 +14,7 @@ Upload a CSV export of your bank transactions and FinSight shows where the money
 | Overview and budgets | Totals, spending by category and month, monthly budgets with "projected month end" and a status | Plain aggregation plus a simple month-end projection |
 | Forecast | Next 31 days of spending, with the backtest scores of the model and of a baseline | A lag-feature random forest is used **only if** it beats a seasonal-naive baseline in a rolling backtest |
 | Unusual transactions | Up to 10 expenses that stand out for their category, each with a reason; you confirm or dismiss | Robust deviation from the category's typical amount; repeating charges (rent) are skipped. **Not fraud detection** |
+| Accounts and sign-in | Email + password, "Continue with Google", a read-only demo guest, password reset and email confirmation, automatic logout after 15 minutes idle, and an administrator page (accounts, sign-in method, disable, audit log) | Argon2 passwords, Google OAuth code flow with PKCE, email through Resend or Brevo (off until configured) |
 | Category review | Rows with no category or an unsure guess, fixed from a list | TF-IDF + logistic regression, with a confidence threshold and an unrecognised-text guard |
 
 ## Architecture
@@ -87,7 +88,11 @@ All endpoints except register, login, refresh, logout, session-check and the hea
 |---|---|---|
 | POST | `/api/auth/register`, `/api/auth/login` | Create an account; log in (sets the HttpOnly refresh cookie) |
 | POST | `/api/auth/refresh`, `/api/auth/logout`, `/api/auth/session-check` | Rotate the cookie and get a new access token; end the session; read-only cookie check |
+| POST | `/api/auth/forgot-password`, `/reset-password`, `/send-verification`, `/verify-email` | Password reset and email confirmation (only when email sending is configured) |
+| GET | `/api/auth/providers`, `/api/auth/google/login`, `/api/auth/google/callback` | Which sign-in options are on; Google sign-in |
+| POST | `/api/auth/demo` | Start the read-only demo guest session |
 | GET | `/api/auth/me` | Current user |
+| GET/PATCH | `/api/admin/overview`, `/users`, `/audit`, `/users/{id}` | Administrator only: totals, accounts, audit log, enable or disable an account |
 | POST | `/api/uploads` | Upload a CSV (202 queued, or 200 `reused` for the same file) |
 | GET | `/api/uploads`, `/api/uploads/{id}`, `/api/uploads/{id}/status` | List, details, per-step status |
 | GET | `/api/uploads/{id}/summary`, `/forecast`, `/budget-risk`, `/anomalies`, `/transactions` | Results |
@@ -139,6 +144,10 @@ Not included: network time, login, database reads and writes, and the browser. T
 - Uploads are limited and validated; errors returned to the client never contain stack traces or file contents; transaction descriptions are not written to logs.
 - Only the repository's own model artifact is ever loaded, after a checksum check; user files are never deserialised as models.
 - Raw cleaned input is kept in the database only while its job is queued or running. Deleting an analysis removes its rows.
+- Google sign-in uses the authorization-code flow with PKCE and only accepts addresses Google reports as verified. Signing in again later does not change a password you set yourself.
+- Disabled accounts are refused everywhere, including with a valid cookie. Administrator actions are written to an audit log.
+- A public [privacy page](https://finance-analyzer-nu.vercel.app/privacy) that says what is stored. Data is not encrypted at column level, so the database owner can read rows.
+- A Postman collection (`docs/postman/`) exercises the API end to end; its run succeeded 16 of 16 checks.
 - Private test data lives in `data/private/` (gitignored, excluded from Docker, guarded by a test).
 
 ## Deployment
@@ -149,7 +158,8 @@ Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers).
 
 - **Synthetic training data.** Scores are for generated bank text. A check on real statements has not been completed, so real-world accuracy is unknown and likely lower.
 - Plausible-looking made-up merchants still receive a guess; meaningless text is mostly (not always) caught.
-- Email addresses are checked for shape only, there is no email verification and no password reset (version 2).
+- Email sending depends on an outside service (Brevo or Resend) being configured; without it, reset and confirmation are switched off and addresses are checked for shape only. Free-plan senders can be filtered as spam, and a Brevo key stops working after 90 days without use.
+- Google sign-in is published but unverified by Google; there is no self-service "delete my account" yet (the privacy page points to a GitHub issue).
 - Dates before 1990 or more than a year ahead, and amounts above one trillion or not finite, are treated as unreadable rows; the forecast uses at most the last five years of history. Free hosting sleeps when idle; long histories are slow on the free server (see the timing above); only one server instance is configured, and migrations run at container start.
 - Unusual-transaction evaluation used injected amount spikes only; real-world precision is unknown. Repeating charges are matched by exact description text.
 - Corrections you make are saved but are not used to retrain the model.
@@ -162,5 +172,5 @@ Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers).
 - **A pre-deploy migration step and several API instances** (migrations already take a database lock, so instances can start together).
 - **Measure the categorizer on real labelled data** (`python -m backend.ml.evaluate_real`) and retrain from reviewed user corrections.
 - **Email:** use a verified sending domain, so mail comes from your own domain; version 1 supports Resend and Brevo (Brevo's free plan can send from one verified address to anyone).
-- **More sign-in options and a password-strength check;** a sending domain you own for email (done: an administrator audit log).
+- **Account deletion, a password-strength check and optional column-level encryption.**
 - Optional AI summaries grounded in the computed numbers.
