@@ -76,7 +76,7 @@ Full list with defaults: [`.env.example`](.env.example). Deployment settings: [`
 | `description` | Optional | Without it a row stays "Uncategorized" for you to categorize |
 | `category` | Optional | Your own label always wins over the model |
 
-Limits: 5 MB and 50,000 rows per file; a few invalid rows are dropped and reported, many are refused.
+Limits: 5 MB and 50,000 rows per file (both settings, `MAX_UPLOAD_BYTES` and `MAX_UPLOAD_ROWS`); a few invalid rows are dropped and reported, many are refused. The limits are set by the free hosting plan's 512 MB of memory: measured peak memory was about 380 MB at 50,000 rows, 530 MB at 100,000 and 790 MB at 200,000 (laptop, whole process), so a larger limit needs a larger server.
 
 ## API summary
 
@@ -160,6 +160,6 @@ Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers).
 - **Cache or precompute** features for repeated backtests; consider a lighter model for the self-test only.
 - **A pre-deploy migration step and several API instances** (migrations already take a database lock, so instances can start together).
 - **Measure the categorizer on real labelled data** (`python -m backend.ml.evaluate_real`) and retrain from reviewed user corrections.
-- **Email:** switch on delivery with a verified sending domain so reset and confirmation links can reach anyone, not only the account owner.
-- **More sign-in options and a password-strength check;** audit log for administrator actions.
+- **Email:** use a verified sending domain, so mail comes from your own domain; version 1 supports Resend and Brevo (Brevo's free plan can send from one verified address to anyone).
+- **More sign-in options and a password-strength check;** a sending domain you own for email (done: an administrator audit log).
 - Optional AI summaries grounded in the computed numbers.

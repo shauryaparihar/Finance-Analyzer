@@ -32,6 +32,17 @@ export interface AdminUser {
   is_active: boolean;
   created_at: string;
   upload_count: number;
+  signed_in: boolean;
+  last_active: string | null;
+}
+
+export interface AuditEntry {
+  id: string;
+  admin_email: string;
+  action: string;
+  target_email: string | null;
+  detail: string | null;
+  created_at: string;
 }
 
 export interface TokenResponse {

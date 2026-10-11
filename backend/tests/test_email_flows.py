@@ -153,3 +153,44 @@ def test_resending_the_verification_email_needs_login_and_respects_the_cooldown(
     assert client.post("/api/auth/send-verification").status_code == 401
     assert client.post("/api/auth/send-verification", headers=headers).status_code == 202
     assert outbox == []  # the registration email was sent seconds ago, so the cooldown holds it back
+
+
+def test_the_brevo_backend_posts_the_message_to_its_web_api_and_reports_failures(monkeypatch):
+    import httpx
+
+    monkeypatch.setattr(settings, "mail_backend", "brevo")
+    monkeypatch.setattr(settings, "brevo_api_key", "test-key")
+    monkeypatch.setattr(settings, "mail_from", "FinSight <sender@example.com>")
+    assert mail.enabled()
+    seen = {}
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        seen.update(url=url, headers=headers, json=json)
+        return httpx.Response(201, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    mail.send("person@example.com", "Hello", "Body with a link")
+    assert seen["url"] == "https://api.brevo.com/v3/smtp/email" and seen["headers"]["api-key"] == "test-key"
+    assert seen["json"]["sender"] == {"name": "FinSight", "email": "sender@example.com"}
+    assert seen["json"]["to"] == [{"email": "person@example.com"}] and seen["json"]["textContent"] == "Body with a link"
+
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: httpx.Response(401, request=httpx.Request("POST", "https://x")))
+    with pytest.raises(mail.MailError):
+        mail.send("person@example.com", "Hello", "Body")
+
+
+def test_the_sender_string_is_split_into_name_and_address():
+    assert mail._split_sender("FinSight <me@example.com>") == ("FinSight", "me@example.com")
+    assert mail._split_sender("me@example.com") == ("FinSight", "me@example.com")
+
+
+def test_a_google_only_account_can_choose_a_password_through_the_reset_email(client, outbox, db):
+    """Signing in with Google switches the app password off; the reset link is how such a person adds one."""
+    repo.resolve_google_user(db, "google-sub-1", EMAIL)
+    outbox.clear()
+    assert client.post("/api/auth/login", json={"email": EMAIL, "password": "anything-at-all"}).status_code == 401
+    client.post("/api/auth/forgot-password", json={"email": EMAIL}, headers=CSRF)
+    assert len(outbox) == 1
+    done = client.post("/api/auth/reset-password", json={"token": _token(outbox[0]), "password": "my-own-new-pass"}, headers=CSRF)
+    assert done.status_code == 204
+    assert client.post("/api/auth/login", json={"email": EMAIL, "password": "my-own-new-pass"}).status_code == 200

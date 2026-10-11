@@ -35,10 +35,11 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
 
-    # Email (password reset and address verification). "console" only prints, for local development; "resend" sends
-    # through Resend's web API (port 443, which free hosts allow); "off" disables the email features.
+    # Email (password reset and address verification). "console" only prints, for local development; "resend" and "brevo" send
+    # through those services' web APIs (port 443, which free hosts allow); "off" disables the email features.
     mail_backend: str = "off"
     resend_api_key: str = ""
+    brevo_api_key: str = ""
     mail_from: str = "FinSight <onboarding@resend.dev>"
     email_token_minutes: int = 30
 

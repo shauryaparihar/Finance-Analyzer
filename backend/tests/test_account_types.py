@@ -101,7 +101,7 @@ def test_an_admin_sees_counts_and_accounts_but_never_other_peoples_data(client, 
     assert overview["uploads_total"] == 1 and overview["uploads_last_7_days"] == 1
     users = {u["email"]: u for u in client.get("/api/admin/users", headers=admin).json()}
     assert users["someone@example.com"]["upload_count"] == 1
-    assert set(users["someone@example.com"]) == {"id", "email", "role", "is_active", "created_at", "upload_count"}  # no financial fields
+    assert set(users["someone@example.com"]) == {"id", "email", "role", "is_active", "created_at", "upload_count", "signed_in", "last_active"}  # account facts only, no financial fields
     # the admin is still just another user as far as someone else's analysis is concerned
     for path in ("", "/summary", "/transactions", "/anomalies"):
         assert client.get(f"/api/uploads/{upload_id}{path}", headers=admin).status_code == 404
@@ -134,3 +134,38 @@ def test_an_admin_cannot_disable_themselves_another_admin_or_a_missing_account(c
     assert (me.status_code, me.json()["error"]["code"]) == (409, "CANNOT_CHANGE_SELF")
     assert (other.status_code, other.json()["error"]["code"]) == (409, "CANNOT_CHANGE_ADMIN")
     assert client.patch("/api/admin/users/00000000-0000-0000-0000-000000000000", headers=admin, json={"is_active": False}).status_code == 404
+
+
+def test_the_account_list_says_who_is_signed_in_and_when_they_were_last_active(client, db):
+    admin = register_and_login(client, "boss@example.com")
+    _make_admin(db, "boss@example.com")
+    register_and_login(client, "present@example.com")
+    gone = register_and_login(client, "gone@example.com")
+    assert gone
+    client.post("/api/auth/logout", headers=CSRF)  # ends the session of the most recent login (gone@example.com)
+    rows = {u["email"]: u for u in client.get("/api/admin/users", headers=admin).json()}
+    assert rows["boss@example.com"]["signed_in"] is True and rows["present@example.com"]["signed_in"] is True
+    assert rows["gone@example.com"]["signed_in"] is False and rows["gone@example.com"]["last_active"] is not None
+    assert rows["boss@example.com"]["is_active"] is True  # "active" is whether the account may sign in, not whether it is signed in
+
+
+def test_every_admin_change_is_recorded_and_only_admins_can_read_the_record(client, db):
+    admin = register_and_login(client, "boss@example.com")
+    _make_admin(db, "boss@example.com")
+    other = register_and_login(client, "someone@example.com")
+    target = repo.get_user_by_email(db, "someone@example.com").id
+    assert client.get("/api/admin/audit", headers=other).status_code == 404
+    client.patch(f"/api/admin/users/{target}", headers=admin, json={"is_active": False})
+    client.patch(f"/api/admin/users/{target}", headers=admin, json={"is_active": True})
+    client.patch(f"/api/admin/users/{target}", headers=admin, json={"is_active": False})
+    entries = client.get("/api/admin/audit", headers=admin).json()
+    assert [e["action"] for e in entries] == ["account_disabled", "account_enabled", "account_disabled"]  # newest first
+    assert {e["admin_email"] for e in entries} == {"boss@example.com"} and {e["target_email"] for e in entries} == {"someone@example.com"}
+
+
+def test_a_refused_admin_change_leaves_no_audit_entry(client, db):
+    admin = register_and_login(client, "boss@example.com")
+    _make_admin(db, "boss@example.com")
+    me = repo.get_user_by_email(db, "boss@example.com").id
+    assert client.patch(f"/api/admin/users/{me}", headers=admin, json={"is_active": False}).status_code == 409
+    assert client.get("/api/admin/audit", headers=admin).json() == []
