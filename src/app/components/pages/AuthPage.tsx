@@ -117,7 +117,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           </Link>
         </p>
         <p className="mt-4 text-center text-xs text-muted-foreground">
-          Everything you upload stays until you delete that analysis.
+          Everything you upload stays until you delete that analysis. <Link to="/privacy" className="underline underline-offset-4 hover:text-foreground">Privacy</Link>
         </p>
       </div>
     </div>

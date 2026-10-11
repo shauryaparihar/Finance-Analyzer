@@ -8,6 +8,7 @@ import { CategoriesPage } from "./components/pages/CategoriesPage";
 import { ForecastPage } from "./components/pages/ForecastPage";
 import { OverviewPage } from "./components/pages/OverviewPage";
 import { UnusualPage } from "./components/pages/UnusualPage";
+import { PrivacyPage } from "./components/pages/PrivacyPage";
 import { UploadPage } from "./components/pages/UploadPage";
 
 export const router = createBrowserRouter([
@@ -16,6 +17,7 @@ export const router = createBrowserRouter([
   { path: "/forgot-password", element: <ForgotPasswordPage /> },
   { path: "/reset-password", element: <ResetPasswordPage /> },
   { path: "/verify-email", element: <VerifyEmailPage /> },
+  { path: "/privacy", element: <PrivacyPage /> },
   {
     path: "/",
     element: (

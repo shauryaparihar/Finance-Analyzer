@@ -66,6 +66,9 @@ export function Layout() {
             </button>
           </div>
         </div>
+        <p className="border-t border-border px-4 py-3 text-center text-xs text-muted-foreground">
+          <Link to="/privacy" className="underline underline-offset-4 hover:text-foreground">Privacy</Link>
+        </p>
       </aside>
 
       {/* Narrow screens: top bar with a scrolling menu */}
