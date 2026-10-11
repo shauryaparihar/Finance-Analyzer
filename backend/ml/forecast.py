@@ -24,7 +24,7 @@ MIN_HISTORY_DAYS = 90
 BACKTEST_HORIZON_OPTIONS = (31, 21, 14)
 MIN_FOLDS = 3
 BACKTEST_STEP_DAYS = 7  # how far the forecast origin moves between folds
-MAX_FOLDS = 12  # the backtest re-trains the model once per fold, so cost would otherwise grow with years of history
+MAX_FOLDS = 24  # the backtest re-trains the model once per fold, so cost would otherwise grow with years of history
 MIN_TRAIN_DAYS = 56  # first backtest fold trains on at least 8 weeks
 WARMUP = 28  # the slowest feature (28-day average) needs 28 days of past
 RECENT_DAYS_SHOWN = 60
@@ -47,6 +47,16 @@ def build_daily_series(df: pd.DataFrame) -> pd.Series:
     daily = expenses.groupby(days)["amount"].sum()
     end = max(df["date"].max().normalize(), daily.index.max())
     return daily.reindex(pd.date_range(daily.index.min(), end, freq="D"), fill_value=0.0).astype(float)
+
+
+def select_folds(folds: list[tuple[int, int]], max_folds: int = MAX_FOLDS) -> list[tuple[int, int]]:
+    """At most `max_folds` windows, spread evenly over the whole history (first and last included). Neighbouring weekly
+    windows overlap heavily, so evenly spaced ones carry almost the same information as all of them, and unlike
+    'the latest N' they do not ignore earlier years."""
+    if len(folds) <= max_folds:
+        return folds
+    picks = np.unique(np.linspace(0, len(folds) - 1, max_folds).round().astype(int))
+    return [folds[i] for i in picks]
 
 
 def rolling_origin_splits(n: int, min_train: int, horizon: int, step: int) -> Iterator[tuple[int, int]]:
@@ -75,7 +85,7 @@ def _training_matrix(values: np.ndarray, dates: pd.DatetimeIndex, end: int) -> t
 
 
 def _new_model() -> RandomForestRegressor:
-    return RandomForestRegressor(n_estimators=100, max_depth=5, min_samples_leaf=5, random_state=RANDOM_STATE, n_jobs=1)
+    return RandomForestRegressor(n_estimators=50, max_depth=5, min_samples_leaf=5, random_state=RANDOM_STATE, n_jobs=1)
 
 
 def forecast_baseline(values: np.ndarray, horizon: int) -> np.ndarray:
@@ -124,8 +134,7 @@ def backtest(values: np.ndarray, dates: pd.DatetimeIndex) -> dict[str, Any]:
     """Score baseline and model over rolling-origin folds. Daily errors are pooled over every forecast day."""
     horizon = pick_horizon(len(values))
     all_folds = list(rolling_origin_splits(len(values), MIN_TRAIN_DAYS, horizon, BACKTEST_STEP_DAYS))
-    # Keep the most recent folds: they are the closest to the period being forecast, and they bound the running time.
-    folds = all_folds[-MAX_FOLDS:]
+    folds = select_folds(all_folds)
     actual, base_pred, model_pred = [], [], []
     for train_end, test_end in folds:
         train_values, train_dates = values[:train_end], dates[:train_end]
