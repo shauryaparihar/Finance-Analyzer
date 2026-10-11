@@ -190,9 +190,15 @@ export const register = (email: string, password: string) =>
   request<User>("/auth/register", { method: "POST", json: { email, password }, auth: false });
 export const login = (email: string, password: string) =>
   request<TokenResponse>("/auth/login", { method: "POST", json: { email, password }, auth: false });
-export interface Providers { google: boolean; demo: boolean }
+export interface Providers { google: boolean; demo: boolean; email: boolean }
 /** Which extra ways to sign in this site offers. */
 export const getProviders = () => request<Providers>("/auth/providers", { auth: false });
+export const forgotPassword = (email: string) =>
+  request<{ message: string }>("/auth/forgot-password", { method: "POST", json: { email }, auth: false, csrf: true });
+export const resetPassword = (token: string, password: string) =>
+  request<void>("/auth/reset-password", { method: "POST", json: { token, password }, auth: false, csrf: true });
+export const verifyEmail = (token: string) => request<void>("/auth/verify-email", { method: "POST", json: { token }, auth: false, csrf: true });
+export const sendVerification = () => request<{ message: string }>("/auth/send-verification", { method: "POST" });
 /** Where "Continue with Google" sends the browser (a full page visit, not a fetch). */
 export const GOOGLE_LOGIN_URL = `${API_BASE}/auth/google/login`;
 /** One-click read-only guest session (only when the deployment turns it on). */

@@ -2,6 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router";
 import { Layout } from "./components/Layout";
 import { RequireAuth } from "./components/RequireAuth";
 import { AdminPage } from "./components/pages/AdminPage";
+import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "./components/pages/EmailPages";
 import { AuthPage } from "./components/pages/AuthPage";
 import { CategoriesPage } from "./components/pages/CategoriesPage";
 import { ForecastPage } from "./components/pages/ForecastPage";
@@ -12,6 +13,9 @@ import { UploadPage } from "./components/pages/UploadPage";
 export const router = createBrowserRouter([
   { path: "/login", element: <AuthPage mode="login" /> },
   { path: "/register", element: <AuthPage mode="register" /> },
+  { path: "/forgot-password", element: <ForgotPasswordPage /> },
+  { path: "/reset-password", element: <ResetPasswordPage /> },
+  { path: "/verify-email", element: <VerifyEmailPage /> },
   {
     path: "/",
     element: (

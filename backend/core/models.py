@@ -53,6 +53,9 @@ class User(Base):
     role: Mapped[str] = mapped_column(String(10), nullable=False, default="user", server_default="user")
     # Google's stable id for this person (the "sub" claim), set when they sign in with Google.
     google_sub: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, unique=True)
+    # When the person proved they own this address (by clicking an emailed link, resetting a password through it,
+    # or signing in with Google). Empty means "never proved".
+    email_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     uploads: Mapped[list["Upload"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     budgets: Mapped[list["Budget"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -213,3 +216,22 @@ class RefreshToken(Base):
     revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     revoke_reason: Mapped[Optional[str]] = mapped_column(String(20))  # rotated | logout | reuse
     replaced_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid)
+
+
+class EmailToken(Base):
+    """A single-use link sent by email: purpose 'reset' (new password) or 'verify' (prove the address is yours).
+    Only a SHA-256 hash of the secret is stored."""
+
+    __tablename__ = "email_tokens"
+    __table_args__ = (
+        CheckConstraint("purpose IN ('reset', 'verify')", name="ck_email_tokens_purpose"),
+        Index("ix_email_tokens_user_purpose", "user_id", "purpose", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(10), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -21,7 +21,7 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
   const passwordRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLInputElement>(null);
   const isLogin = mode === "login";
-  const providers = useResource(() => getProviders().catch(() => ({ google: false, demo: false })), []).data;
+  const providers = useResource(() => getProviders().catch(() => ({ google: false, demo: false, email: false })), []).data;
   const [params] = useSearchParams();
   const googleFailed = params.get("google") === "failed";
   const destination = (location.state as { from?: string } | null)?.from ?? "/";
@@ -73,6 +73,9 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           {googleFailed && <Notice tone="warn">Google sign-in did not complete. Please try again, or use your email and password.</Notice>}
           {formError !== null && <ErrorNotice error={formError} />}
         </AuthForm>
+        {isLogin && providers?.email && (
+          <p className="mt-3 text-center text-sm"><Link to="/forgot-password" className="text-primary underline-offset-4 hover:underline">Forgot your password?</Link></p>
+        )}
         {providers?.google && (
           <a
             href={GOOGLE_LOGIN_URL}

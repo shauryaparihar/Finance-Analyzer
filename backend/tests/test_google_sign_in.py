@@ -40,7 +40,7 @@ def _finish(client, monkeypatch, query, **claim_overrides):
 
 def test_google_sign_in_does_not_exist_until_it_is_configured(client):
     assert client.get("/api/auth/google/login", follow_redirects=False).status_code == 404
-    assert client.get("/api/auth/providers").json() == {"google": False, "demo": False}
+    assert client.get("/api/auth/providers").json() == {"google": False, "demo": False, "email": False}
 
 
 def test_the_sign_in_address_uses_pkce_state_and_the_websites_own_callback(client, google_on):
