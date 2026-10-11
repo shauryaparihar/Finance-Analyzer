@@ -146,7 +146,7 @@ Not included: network time, login, database reads and writes, and the browser. T
 - Raw cleaned input is kept in the database only while its job is queued or running. Deleting an analysis removes its rows.
 - Google sign-in uses the authorization-code flow with PKCE and only accepts addresses Google reports as verified. Signing in again later does not change a password you set yourself.
 - Disabled accounts are refused everywhere, including with a valid cookie. Administrator actions are written to an audit log.
-- Every page has a [privacy page](https://finance-analyzer-nu.vercel.app/privacy) that says what is stored. Data is not encrypted at column level, so the database owner can read rows.
+- A public [privacy page](https://finance-analyzer-nu.vercel.app/privacy) that says what is stored. Data is not encrypted at column level, so the database owner can read rows.
 - A Postman collection (`docs/postman/`) exercises the API end to end; its run succeeded 16 of 16 checks.
 - Private test data lives in `data/private/` (gitignored, excluded from Docker, guarded by a test).
 
