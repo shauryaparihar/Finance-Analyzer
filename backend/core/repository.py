@@ -426,14 +426,20 @@ def reset_for_retry(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID) -> No
 
 
 def reap_orphaned_jobs(db: Session, stale_after_seconds: float, max_attempts: int) -> dict[str, int]:
-    """Recover jobs whose worker died (no heartbeat for stale_after_seconds): re-queue them, or fail them once they
-    have been attempted max_attempts times. Jobs with a fresh heartbeat are never touched, whichever instance runs
-    them. Time is measured by the database, so instances need no synchronised clocks."""
+    """Recover jobs whose worker died (no heartbeat for stale_after_seconds AND no live worker holding the job's
+    advisory lock): re-queue them, or fail them once they have been attempted max_attempts times. Jobs with a fresh
+    heartbeat, or whose worker still holds its lock, are never touched, whichever instance runs them. Time is measured by the database, so instances need no synchronised clocks."""
     cutoff = func.now() - timedelta(seconds=stale_after_seconds)
     orphans = list(
         db.scalars(
             select(Upload)
-            .where(Upload.status == "processing", Upload.heartbeat_at < cutoff)
+            .where(
+                Upload.status == "processing",
+                Upload.heartbeat_at < cutoff,
+                # A worker that is alive holds this lock on its own connection (see services/jobs.LivenessLock); this
+                # takes it for the length of the transaction only if nobody else holds it, so a live job is skipped.
+                text("pg_try_advisory_xact_lock(hashtextextended('job:' || uploads.id::text, 0))"),
+            )
             .with_for_update(skip_locked=True)
         )
     )

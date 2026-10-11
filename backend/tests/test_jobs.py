@@ -770,3 +770,89 @@ def test_no_database_connection_is_held_open_while_the_analysis_computes(db, fac
     run_analysis_job(factory, claim["user_id"], claim["upload_id"], object(), "w0", claim["attempts"], None)
     assert seen["checked_out"] == 0
     assert _status(factory, upload.id) == "failed"  # the (stubbed) pipeline failed, and that was recorded on a fresh connection
+
+
+def _hold_job_lock(test_engine, upload_id):
+    """Take the advisory lock the way a live worker does, on its own connection. Returns a function that releases it."""
+    conn = test_engine.connect()
+    conn.execute(text("SELECT pg_advisory_lock(hashtextextended('job:' || :id, 0))"), {"id": str(upload_id)})
+
+    def release():
+        conn.execute(text("SELECT pg_advisory_unlock(hashtextextended('job:' || :id, 0))"), {"id": str(upload_id)})
+        conn.close()
+
+    return release
+
+
+def test_a_job_whose_worker_still_holds_its_lock_is_never_recovered_however_stale_its_heartbeat(db, test_engine):
+    upload = _enqueue(db, _user(db))
+    _kill_worker(db, upload, minutes_ago=60)
+    release = _hold_job_lock(test_engine, upload.id)
+    try:
+        assert repo.reap_orphaned_jobs(db, 60, 2) == {"requeued": 0, "failed": 0}
+    finally:
+        release()
+    assert repo.reap_orphaned_jobs(db, 60, 2) == {"requeued": 1, "failed": 0}  # once the worker is gone, the job is recovered
+
+
+def test_a_crashed_worker_frees_its_lock_at_once_when_its_connection_closes(db, test_engine):
+    upload = _enqueue(db, _user(db))
+    _kill_worker(db, upload, minutes_ago=5)
+    conn = test_engine.connect()
+    conn.execute(text("SELECT pg_advisory_lock(hashtextextended('job:' || :id, 0))"), {"id": str(upload.id)})
+    assert repo.reap_orphaned_jobs(db, 60, 2)["requeued"] == 0
+    conn.invalidate()  # the process died: its connection is gone and Postgres frees the lock
+    conn.close()
+    assert repo.reap_orphaned_jobs(db, 60, 2)["requeued"] == 1
+
+
+def test_a_running_job_holds_its_lock_and_releases_it_when_done(db, factory, test_engine):
+    upload = _enqueue(db, _user(db))
+    during = {}
+
+    def process(session_factory, **claim):
+        with test_engine.connect() as other:
+            during["free"] = other.execute(
+                text("SELECT pg_try_advisory_lock(hashtextextended('job:' || :id, 0))"), {"id": str(claim["upload_id"])}
+            ).scalar()
+        _complete(session_factory, **claim)
+
+    runner = _runner(factory, process=process)
+    assert runner.drain() == 1
+    assert during["free"] is False  # held by the worker while it ran
+    with test_engine.connect() as other:
+        free = other.execute(text("SELECT pg_try_advisory_lock(hashtextextended('job:' || :id, 0))"), {"id": str(upload.id)}).scalar()
+        other.execute(text("SELECT pg_advisory_unlock_all()"))
+    assert free is True  # released afterwards
+
+
+def test_a_dropped_connection_during_the_final_save_is_retried_once_instead_of_losing_the_analysis(db, factory, monkeypatch):
+    from sqlalchemy.exc import OperationalError
+
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as claiming:
+        claimed = repo.claim_next_job(claiming, "w0")
+        claim = {"user_id": claimed.user_id, "upload_id": claimed.id, "attempts": claimed.attempts}
+    db.rollback()
+
+    def fake_pipeline(df, categorizer, observer=None):
+        for module in MODULES:
+            observer.on_start(module)
+            observer.on_finish(module, ModuleOutcome("completed"), 1)
+        return {"status": "completed", "modules": {"summary": {"total_transactions": len(df)}}, "errors": [], "processed_df": df}
+
+    real_store = repo.store_transactions
+    calls = {"n": 0}
+
+    def flaky_store(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OperationalError("INSERT", {}, Exception("server closed the connection unexpectedly"))
+        return real_store(*args, **kwargs)
+
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", fake_pipeline)
+    monkeypatch.setattr(repo, "store_transactions", flaky_store)
+    run_analysis_job(factory, claim["user_id"], claim["upload_id"], object(), "w0", claim["attempts"], None)
+    assert calls["n"] == 2
+    assert _status(factory, upload.id) == "completed"

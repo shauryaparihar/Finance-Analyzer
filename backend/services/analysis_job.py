@@ -10,6 +10,7 @@ import time
 import uuid
 from typing import Callable, Optional
 
+from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.orm import Session
 
 from backend.core import repository as repo
@@ -102,21 +103,7 @@ def run_analysis_job(
             repo.update_upload_status(db, user_id, upload_id, "failed", "The file could not be processed.", worker_id)
             status, failed_modules = "failed", ["preprocessing"]
         else:
-            # One transaction: lock the job row (proving we still own it, and keeping a reaper away), write the
-            # transactions and results, set the final status, delete the input, commit. Either all of it happens
-            # while this worker owns the job, or none of it does.
-            repo.lock_claim(db, user_id, upload_id, worker_id)
-            repo.store_transactions(db, user_id, upload_id, results["processed_df"], commit=False)
-            for name, payload in results["modules"].items():
-                repo.upsert_analysis_result(db, user_id, upload_id, name, payload, commit=False)
-            runs = repo.list_runs(db, user_id, upload_id)
-            status = overall_status(runs)
-            failed_modules = [r.module for r in runs if r.status == "failed"]
-            summary = None if status == "completed" else (
-                "Some analysis steps failed: " + ", ".join(failed_modules) + "."
-                if status == "partial" else "Analysis failed."
-            )
-            repo.update_upload_status(db, user_id, upload_id, status, summary, worker_id)  # commits everything
+            status, failed_modules = _save_results(db, user_id, upload_id, worker_id, results, upload_ref)
 
         modules = results.get("modules", {})
         log_event(
@@ -147,6 +134,40 @@ def run_analysis_job(
         _record_failure(db, user_id, upload_id, worker_id, missing_input=isinstance(exc, MissingInput))
     finally:
         db.close()
+
+
+def _write_phase(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_id: str, results: dict) -> tuple[str, list[str]]:
+    # One transaction: lock the job row (proving we still own it, and keeping a reaper away), write the
+    # transactions and results, set the final status, delete the input, commit. Either all of it happens
+    # while this worker owns the job, or none of it does.
+    repo.lock_claim(db, user_id, upload_id, worker_id)
+    repo.store_transactions(db, user_id, upload_id, results["processed_df"], commit=False)
+    for name, payload in results["modules"].items():
+        repo.upsert_analysis_result(db, user_id, upload_id, name, payload, commit=False)
+    runs = repo.list_runs(db, user_id, upload_id)
+    status = overall_status(runs)
+    failed_modules = [r.module for r in runs if r.status == "failed"]
+    summary = None if status == "completed" else (
+        "Some analysis steps failed: " + ", ".join(failed_modules) + "."
+        if status == "partial" else "Analysis failed."
+    )
+    repo.update_upload_status(db, user_id, upload_id, status, summary, worker_id)  # commits everything
+    return status, failed_modules
+
+
+def _save_results(db: Session, user_id: uuid.UUID, upload_id: uuid.UUID, worker_id: str, results: dict, upload_ref: str) -> tuple[str, list[str]]:
+    """Save the finished analysis. If the database connection was dropped meanwhile (all the work is in memory and
+    nothing was committed), try once more on a fresh connection instead of throwing the finished analysis away."""
+    try:
+        return _write_phase(db, user_id, upload_id, worker_id, results)
+    except (OperationalError, InterfaceError):
+        log_event(logger, logging.WARNING, "job_write_retried", upload_id=upload_ref, exc_info=True)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        db.close()
+        return _write_phase(db, user_id, upload_id, worker_id, results)
 
 
 class MissingInput(Exception):

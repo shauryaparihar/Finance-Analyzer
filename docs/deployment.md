@@ -50,3 +50,7 @@ Off by default (`MAIL_BACKEND=off`): the website hides the "Forgot your password
 - **Deployed:** `MAIL_BACKEND=resend` sends through [Resend](https://resend.com)'s web API over HTTPS. Free hosting such as Render blocks the usual SMTP ports, which is why SMTP is not used. Create a Resend account and API key, put it in Render as `RESEND_API_KEY`, and set `MAIL_BACKEND=resend`.
 - **Who can receive mail:** a new Resend account can normally send only to its own owner's address until you verify a sending domain you control; check Resend's current rules. Without a domain the feature can be demonstrated with the account owner's address only. `MAIL_FROM` must be an address Resend allows for your account.
 - Links work once and expire after `EMAIL_TOKEN_MINUTES` (default 30); only a hash of each link is stored.
+
+## Database connection type
+
+Use the **direct (non-pooled)** connection string from Neon, the one without `-pooler` in the host name. Running jobs prove they are alive with a PostgreSQL session lock, which needs a connection that stays the same for the whole job; a pooled connection in transaction mode can hand the lock to a different client.
