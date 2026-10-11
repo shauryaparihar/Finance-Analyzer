@@ -3,7 +3,8 @@ export function amount(value: number): string {
   return new Intl.NumberFormat("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 }
 
-export function percent(value: number, digits = 1): string {
+export function percent(value: number | null | undefined, digits = 1): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a"; // for example, a test window with no spending
   return `${value.toFixed(digits)}%`;
 }
 

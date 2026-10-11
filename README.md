@@ -149,10 +149,17 @@ Website on Vercel, API in Docker on Render, PostgreSQL on Neon (all free tiers).
 - **Synthetic training data.** Scores are for generated bank text. A check on real statements has not been completed, so real-world accuracy is unknown and likely lower.
 - Plausible-looking made-up merchants still receive a guess; meaningless text is mostly (not always) caught.
 - Email addresses are checked for shape only, there is no email verification and no password reset (version 2).
-- Free hosting sleeps when idle; long histories are slow on the free server (see the timing above); only one server instance is configured, and migrations run at container start.
+- Dates before 1990 or more than a year ahead, and amounts above one trillion or not finite, are treated as unreadable rows; the forecast uses at most the last five years of history. Free hosting sleeps when idle; long histories are slow on the free server (see the timing above); only one server instance is configured, and migrations run at container start.
 - Unusual-transaction evaluation used injected amount spikes only; real-world precision is unknown. Repeating charges are matched by exact description text.
 - Corrections you make are saved but are not used to retrain the model.
 
-## Future work
+## Future work (version 2)
 
-Email verification and password reset; measure and report the categorizer on real labelled data; retrain from user corrections with review; cache or speed up the forecast backtest; a pre-deploy migration step and several API instances; optional AI summaries grounded in the computed numbers.
+- **Forecast as its own background step.** Show the other screens as soon as categorization and the unusual-transaction ranking finish (about 40 s earlier on the free server) and fill in the forecast afterwards. It needs a two-stage save and a changed job flow, so it was left out of version 1.
+- **Run forecast backtest windows in parallel** on a host with more than one CPU core (no benefit on the free tier's single shared core).
+- **Cache or precompute** features for repeated backtests; consider a lighter model for the self-test only.
+- **A pre-deploy migration step and several API instances** (migrations already take a database lock, so instances can start together).
+- **Measure the categorizer on real labelled data** (`python -m backend.ml.evaluate_real`) and retrain from reviewed user corrections.
+- **Email:** switch on delivery with a verified sending domain so reset and confirmation links can reach anyone, not only the account owner.
+- **More sign-in options and a password-strength check;** audit log for administrator actions.
+- Optional AI summaries grounded in the computed numbers.

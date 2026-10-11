@@ -24,6 +24,7 @@ MIN_HISTORY_DAYS = 90
 BACKTEST_HORIZON_OPTIONS = (31, 21, 14)
 MIN_FOLDS = 3
 BACKTEST_STEP_DAYS = 7  # how far the forecast origin moves between folds
+MAX_HISTORY_DAYS = 5 * 365 + 1  # only the most recent five years are used: older history adds cost, not accuracy
 MAX_FOLDS = 24  # the backtest re-trains the model once per fold, so cost would otherwise grow with years of history
 MIN_TRAIN_DAYS = 56  # first backtest fold trains on at least 8 weeks
 WARMUP = 28  # the slowest feature (28-day average) needs 28 days of past
@@ -46,7 +47,8 @@ def build_daily_series(df: pd.DataFrame) -> pd.Series:
     days = expenses["date"].dt.normalize()
     daily = expenses.groupby(days)["amount"].sum()
     end = max(df["date"].max().normalize(), daily.index.max())
-    return daily.reindex(pd.date_range(daily.index.min(), end, freq="D"), fill_value=0.0).astype(float)
+    series = daily.reindex(pd.date_range(daily.index.min(), end, freq="D"), fill_value=0.0).astype(float)
+    return series.iloc[-MAX_HISTORY_DAYS:]
 
 
 def select_folds(folds: list[tuple[int, int]], max_folds: int = MAX_FOLDS) -> list[tuple[int, int]]:
@@ -127,6 +129,8 @@ def _window_total_error_pct(actual_windows: list[np.ndarray], predicted_windows:
     """Average error of the total spent over a forecast window, as a percentage of the actual total."""
     actual_totals = np.array([w.sum() for w in actual_windows])
     predicted_totals = np.array([w.sum() for w in predicted_windows])
+    if actual_totals.mean() == 0:
+        return float("nan")  # nothing was spent in any test window, so a percentage of it has no meaning
     return float(np.abs(actual_totals - predicted_totals).mean() / actual_totals.mean() * 100)
 
 

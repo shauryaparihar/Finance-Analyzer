@@ -2,7 +2,7 @@
   "info": {
     "name": "FinSight API check",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Run top to bottom against local or deployed API. Set base_url (for example https://finance-analyzer-nu.vercel.app or http://localhost:8000). Use a throwaway email."
+    "description": "Run top to bottom with the Collection Runner (set Delay to 5000 ms). The Status request repeats itself until the analysis has finished. Set base_url (for example https://finance-analyzer-nu.vercel.app or http://localhost:8000) and use a throwaway email."
   },
   "variable": [
     {
@@ -28,6 +28,10 @@
     {
       "key": "transaction_id",
       "value": ""
+    },
+    {
+      "key": "status_tries",
+      "value": "0"
     }
   ],
   "item": [
@@ -234,7 +238,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('accepted', () => pm.expect([200,202]).to.include(pm.response.code));",
-              "pm.collectionVariables.set('upload_id', pm.response.json().upload_id);"
+              "pm.collectionVariables.set('upload_id', pm.response.json().upload_id);",
+              "pm.collectionVariables.set('status_tries', 0);"
             ]
           }
         }
@@ -269,7 +274,15 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('has a status', () => pm.expect(pm.response.json().status).to.be.a('string'));"
+              "const status = pm.response.json().status;",
+              "const tries = Number(pm.collectionVariables.get('status_tries') || 0) + 1;",
+              "pm.collectionVariables.set('status_tries', tries);",
+              "if ((status === 'queued' || status === 'processing') && tries < 120) {",
+              "  // not finished: ask again (the runner's Delay setting spaces the attempts out)",
+              "  pm.execution.setNextRequest(pm.info.requestName);",
+              "} else {",
+              "  pm.test('analysis finished', () => pm.expect(['completed', 'partial']).to.include(status));",
+              "}"
             ]
           }
         }
