@@ -130,6 +130,15 @@ describe("unusual-transaction decisions shown before the server answers", () => 
   });
 });
 
+describe("percentages that cannot be computed", () => {
+  it("show n/a instead of crashing the screen", () => {
+    expect(percent(null)).toBe("n/a");
+    expect(percent(undefined)).toBe("n/a");
+    expect(percent(Number.NaN)).toBe("n/a");
+    expect(percent(12.34)).toBe("12.3%");
+  });
+});
+
 describe("logging out after inactivity", () => {
   const MIN = 60 * 1000;
   it("is idle exactly when the limit has passed", () => {

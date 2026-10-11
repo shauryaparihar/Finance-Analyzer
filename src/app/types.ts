@@ -117,7 +117,7 @@ export interface Summary {
 export interface ErrorScores {
   mae: number;
   rmse: number;
-  window_total_error_pct: number;
+  window_total_error_pct: number | null;
 }
 export interface ForecastSkipped {
   status: "skipped";

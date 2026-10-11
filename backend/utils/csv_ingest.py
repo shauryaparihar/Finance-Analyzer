@@ -5,12 +5,19 @@ import io
 import re
 from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from backend.api.errors import AppError
 from backend.utils.amounts import AmountConventionError, apply_amount_convention
 
 REQUIRED_COLUMNS = ("date", "amount")
+# Rows outside these bounds are treated like unreadable rows (dropped and reported, or the file is refused if there are
+# many). Without them one stray value such as 1700-01-01 would make the forecast build a series of centuries, and an
+# amount of 1e300 or "inf" would overflow every total.
+MAX_ABS_AMOUNT = 1e12
+MIN_DATE = "1990-01-01"
+MAX_DAYS_AHEAD = 366  # a scheduled payment a year ahead is plausible; later than that is not
 
 
 @dataclass
@@ -67,13 +74,16 @@ def validate_and_clean_csv(
 
     df["amount"] = pd.to_numeric(df["amount"], errors="coerce")
     df["date"] = pd.to_datetime(df["date"], format="mixed", errors="coerce")
-    invalid = df["amount"].isna() | df["date"].isna()
+    latest = pd.Timestamp.now().normalize() + pd.Timedelta(days=MAX_DAYS_AHEAD)
+    amount_bad = df["amount"].isna() | ~np.isfinite(df["amount"]) | (df["amount"].abs() > MAX_ABS_AMOUNT)
+    date_bad = df["date"].isna() | (df["date"] < pd.Timestamp(MIN_DATE)) | (df["date"] > latest)
+    invalid = amount_bad | date_bad
     invalid_share = float(invalid.mean())
     if invalid_share > max_invalid_share:
         raise AppError(
             400,
             "UPLOAD_TOO_MANY_INVALID_ROWS",
-            f"{invalid_share:.0%} of rows have an invalid date or amount (limit {max_invalid_share:.0%}).",
+            f"{invalid_share:.0%} of rows have a missing, unreadable or implausible date or amount (limit {max_invalid_share:.0%}).",
             {"invalid_rows": int(invalid.sum()), "total_rows": rows_received},
         )
 
