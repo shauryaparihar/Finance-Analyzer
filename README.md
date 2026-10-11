@@ -63,6 +63,7 @@ Open http://localhost:5173, create an account, and upload `data/sample_descripti
 | `EXTRA_FRONTEND_ORIGINS` | Optional extra exact https origins, comma-separated, no wildcards |
 | `ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_DAYS`, `REFRESH_FAMILY_MAX_DAYS`, `COOKIE_SECURE` | Login session settings |
 | `ANALYSIS_WORKERS`, `MAX_ACTIVE_JOBS`, `JOB_*` | Background-job settings |
+| `REFRESH_ROTATE_AFTER_SECONDS` | A login cookie younger than this (default 12 hours) is kept on page loads instead of swapped |
 | `LOG_LEVEL`, `LOG_EXCEPTION_MESSAGES` | Logging (exception messages stay off by default: they can echo user data) |
 
 Full list with defaults: [`.env.example`](.env.example). Deployment settings: [`docs/deployment.md`](docs/deployment.md).

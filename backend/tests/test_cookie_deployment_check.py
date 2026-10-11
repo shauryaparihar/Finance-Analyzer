@@ -33,6 +33,7 @@ def stack(test_engine):
     def launch(allow_proxy_origin: bool, strip_set_cookie: bool = False) -> str:
         env = {
             **os.environ, "PYTHONPATH": str(ROOT), "ENVIRONMENT": "development", "DATABASE_URL": TEST_DATABASE_URL,
+            "REFRESH_ROTATE_AFTER_SECONDS": "0",  # rotate on every refresh so the rotation and replay checks have something to see
             "EXTRA_FRONTEND_ORIGINS": f"http://127.0.0.1:{proxy_port}" if allow_proxy_origin else "",
         }
         started["process"] = subprocess.Popen(
