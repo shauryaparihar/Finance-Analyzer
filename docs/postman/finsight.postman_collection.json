@@ -237,9 +237,14 @@
           "script": {
             "type": "text/javascript",
             "exec": [
-              "pm.test('accepted', () => pm.expect([200,202]).to.include(pm.response.code));",
-              "pm.collectionVariables.set('upload_id', pm.response.json().upload_id);",
-              "pm.collectionVariables.set('status_tries', 0);"
+              "pm.test('accepted (if this fails with 400 \"The file is empty\", the CSV is not attached: Body > form-data > file row > Select files)', () => pm.expect([200,202]).to.include(pm.response.code));",
+              "if ([200,202].includes(pm.response.code)) {",
+              "  pm.collectionVariables.set('upload_id', pm.response.json().upload_id);",
+              "  pm.collectionVariables.set('status_tries', 0);",
+              "} else {",
+              "  // nothing to analyse, so the remaining requests would only fail for the same reason: stop the run here",
+              "  pm.execution.setNextRequest(null);",
+              "}"
             ]
           }
         }
@@ -423,7 +428,8 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('ok', () => pm.response.to.have.status(200));",
-              "const t = pm.response.json().transactions[0]; if (t) pm.collectionVariables.set('transaction_id', t.id);"
+              "const t = (pm.response.json().transactions || [])[0];",
+              "if (t) pm.collectionVariables.set('transaction_id', t.id);"
             ]
           }
         }

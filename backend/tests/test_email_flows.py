@@ -194,3 +194,14 @@ def test_a_google_only_account_can_choose_a_password_through_the_reset_email(cli
     done = client.post("/api/auth/reset-password", json={"token": _token(outbox[0]), "password": "my-own-new-pass"}, headers=CSRF)
     assert done.status_code == 204
     assert client.post("/api/auth/login", json={"email": EMAIL, "password": "my-own-new-pass"}).status_code == 200
+
+
+def test_a_password_chosen_after_google_sign_in_survives_signing_in_with_google_again(client, outbox, db):
+    """Only the FIRST Google sign-in (the linking) switches the password off; later ones just find the account."""
+    repo.resolve_google_user(db, "google-sub-1", EMAIL)
+    outbox.clear()
+    client.post("/api/auth/forgot-password", json={"email": EMAIL}, headers=CSRF)
+    client.post("/api/auth/reset-password", json={"token": _token(outbox[0]), "password": "my-own-new-pass"}, headers=CSRF)
+    user, linked = repo.resolve_google_user(db, "google-sub-1", EMAIL)
+    assert linked is False
+    assert client.post("/api/auth/login", json={"email": EMAIL, "password": "my-own-new-pass"}).status_code == 200
