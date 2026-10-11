@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7  # each rotated refresh token lasts this long ...
     refresh_family_max_days: int = 30  # ... but a login session can never be extended past this
     refresh_grace_seconds: int = 10  # a just-rotated token presented again within this window is a race, not theft
+    refresh_rotate_after_seconds: int = 12 * 3600  # a live token younger than this is kept as it is: page reloads do not swap the cookie
     cookie_secure: bool | None = None  # None: Secure cookies in production, plain in local development
 
     # "Continue with Google": both values come from a Google Cloud OAuth client (see docs/deployment.md). Off when empty.

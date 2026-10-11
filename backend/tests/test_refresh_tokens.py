@@ -17,6 +17,13 @@ CSRF = {CSRF_HEADER: "1"}
 EMAIL = "cookie@example.com"
 
 
+@pytest.fixture(autouse=True)
+def rotate_every_time(monkeypatch):
+    """Most tests here are about rotation itself, so by default every refresh swaps the cookie (the real default keeps a
+    token that is under half a day old; the tests at the bottom turn that back on)."""
+    monkeypatch.setattr(settings, "refresh_rotate_after_seconds", 0)
+
+
 @pytest.fixture
 def session(client):
     """A registered user who has just logged in: the client's cookie jar now holds the refresh cookie."""
@@ -303,3 +310,44 @@ def test_session_check_rejects_missing_revoked_and_unsafe_requests(client, sessi
     assert client.post("/api/auth/session-check", headers=CSRF).status_code == 401  # logged-out token
     client.cookies.clear()
     assert client.post("/api/auth/session-check", headers=CSRF).status_code == 401  # no cookie at all
+
+
+# --- a fresh token is kept, so reloading the page cannot lose the cookie ---
+
+def test_a_fresh_cookie_is_kept_instead_of_swapped_on_every_page_load(client, session, db, monkeypatch):
+    monkeypatch.setattr(settings, "refresh_rotate_after_seconds", 12 * 3600)
+    first = _cookie(client)
+    for _ in range(5):  # five reloads in a row
+        response = _refresh(client)
+        assert response.status_code == 200 and response.json()["access_token"]
+        assert not any(k.lower() == "set-cookie" for k, _ in response.headers.multi_items())  # nothing to lose in transit
+    assert _cookie(client) == first
+    assert db.scalar(select(func.count()).select_from(RefreshToken)) == 1  # no new rows either
+
+
+def test_an_older_cookie_is_swapped_as_before(client, session, db, monkeypatch):
+    monkeypatch.setattr(settings, "refresh_rotate_after_seconds", 12 * 3600)
+    old = _cookie(client)
+    db.execute(update(RefreshToken).values(created_at=func.now() - timedelta(hours=13)))
+    db.commit()
+    assert _refresh(client).status_code == 200
+    assert _cookie(client) != old
+
+
+def test_a_stale_cookie_that_comes_back_through_the_grace_window_is_still_replaced(client, session, db, monkeypatch):
+    """The newest token is brand new, yet the browser holds an older one: it must be handed the new cookie."""
+    lost = _cookie(client)
+    assert _refresh(client).status_code == 200  # rotated (setting is 0 here); pretend the browser missed the answer
+    monkeypatch.setattr(settings, "refresh_rotate_after_seconds", 12 * 3600)
+    again = _refresh(client, cookie=lost)
+    assert again.status_code == 200
+    assert _set_cookie_header(again).split(";")[0].split("=", 1)[1] != lost
+
+
+def test_a_disabled_account_is_refused_even_when_the_cookie_is_fresh(client, session, db, monkeypatch):
+    monkeypatch.setattr(settings, "refresh_rotate_after_seconds", 12 * 3600)
+    user = repo.get_user_by_email(db, EMAIL)
+    user.is_active = False
+    db.commit()
+    assert _refresh(client).json()["error"]["code"] == "REFRESH_INVALID"
+    assert db.scalar(select(func.count()).select_from(RefreshToken).where(RefreshToken.revoked_at.is_(None))) == 0

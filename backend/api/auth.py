@@ -209,7 +209,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     result = refresh_tokens.rotate(db, request.cookies.get(REFRESH_COOKIE))
     user = repo.get_user(db, result.user_id) if result.outcome == "ok" and result.user_id else None
     if result.outcome == "ok" and (user is None or not user.is_active):
-        refresh_tokens.revoke(db, result.new_token)  # the account was disabled: end this session as well
+        refresh_tokens.revoke(db, result.new_token or request.cookies.get(REFRESH_COOKIE))  # the account was disabled: end this session as well
         result.outcome = "invalid"
     if result.outcome != "ok":
         log_event(
@@ -221,8 +221,9 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
         code, message = _REFRESH_FAILURES[result.outcome]
         headers = {} if result.outcome == "race" else {"Set-Cookie": _expired_cookie_header()}
         raise AppError(401, code, message, headers=headers)
-    _set_refresh_cookie(response, result.new_token)
-    log_event(logger, logging.INFO, "refresh_token_rotated", user_id=str(result.user_id), family_id=str(result.family_id))
+    if result.new_token:
+        _set_refresh_cookie(response, result.new_token)
+    log_event(logger, logging.INFO, "refresh_token_rotated" if result.new_token else "refresh_token_kept", user_id=str(result.user_id), family_id=str(result.family_id))
     return TokenOut(access_token=create_access_token(user.id), expires_in=settings.access_token_expire_minutes * 60)
 
 
