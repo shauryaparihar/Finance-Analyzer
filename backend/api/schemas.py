@@ -169,6 +169,7 @@ class AdminUserOut(BaseModel):
     upload_count: int
     signed_in: bool = False
     last_active: Optional[datetime] = None
+    sign_in_method: str = "password"  # password | google | google+password
 
 
 class AdminUserUpdate(BaseModel):

@@ -6,6 +6,7 @@ import { AuthForm } from "./AuthForm";
 import { CookieNotice } from "./common";
 import { KPICard } from "./KPICard";
 import { ModuleProgress } from "./ModuleProgress";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import { ForgotPasswordPage, ResetPasswordPage, VerifyEmailPage } from "./pages/EmailPages";
 import { ForecastView } from "./pages/ForecastPage";
 
@@ -158,6 +159,10 @@ describe("email pages", () => {
     expect(page(<ResetPasswordPage />, "/reset-password?token=abcdefghijklmnop")).toContain("Confirm new password");
     expect(page(<ResetPasswordPage />, "/reset-password?token=abcdefghijklmnop")).toContain("Show password");
     expect(page(<ResetPasswordPage />, "/reset-password")).toContain("incomplete");
+  });
+  it("has a privacy page that says what is stored and who can see it", () => {
+    const html = page(<PrivacyPage />, "/privacy");
+    for (const text of ["What is stored", "Who handles it", "Who can see your data", "Deleting your data", "never stored"]) expect(html).toContain(text);
   });
   it("shows a clear result page for the confirmation link", () => {
     expect(page(<VerifyEmailPage />, "/verify-email")).toContain("not valid any more");

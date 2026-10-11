@@ -34,6 +34,7 @@ export interface AdminUser {
   upload_count: number;
   signed_in: boolean;
   last_active: string | null;
+  sign_in_method: "password" | "google" | "google+password";
 }
 
 export interface AuditEntry {
