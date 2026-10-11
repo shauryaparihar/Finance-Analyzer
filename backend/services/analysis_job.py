@@ -89,6 +89,11 @@ def run_analysis_job(
         if attempts > 1:
             repo.reset_for_retry(db, user_id, upload_id)  # a previous attempt may have written partial output
         log_event(logger, logging.INFO, "job_started", upload_id=upload_ref, rows=len(df), attempt=attempts, worker_id=worker_id)
+        # Give the connection back before the long computation. Holding it idle for minutes lets a network or the
+        # database drop it, and the final write then fails even though every step finished. The session reconnects
+        # (with a health check) the next time it is used.
+        db.commit()
+        db.close()
 
         results = run_full_pipeline(df, categorizer, observer=RunRecorder(session_factory, user_id, upload_id))
 

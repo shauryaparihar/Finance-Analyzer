@@ -748,3 +748,25 @@ def test_the_real_job_holds_the_lock_while_saving_so_a_reaper_cannot_steal_it_mi
     db.expire_all()
     assert seen["reaper"] == {"requeued": 0, "failed": 0} and seen["waited"] < 1.0
     assert db.get(Upload, upload.id).status == "completed" and db.get(Upload, upload.id).attempts == 1
+
+
+
+def test_no_database_connection_is_held_open_while_the_analysis_computes(db, factory, test_engine, monkeypatch):
+    """A long computation must not sit on an idle database connection: hosted networks and databases can drop it,
+    and the final write then fails even though every step finished."""
+    user = _user(db)
+    upload = _enqueue(db, user)
+    with factory() as claiming:
+        claimed = repo.claim_next_job(claiming, "w0")
+        claim = {"user_id": claimed.user_id, "upload_id": claimed.id, "attempts": claimed.attempts, "request_id": None}
+    db.rollback()
+    seen = {}
+
+    def pipeline_probe(df, categorizer, observer=None):
+        seen["checked_out"] = test_engine.pool.checkedout()
+        return {"status": "failed", "modules": {}, "errors": [], "processed_df": df}
+
+    monkeypatch.setattr(analysis_job, "run_full_pipeline", pipeline_probe)
+    run_analysis_job(factory, claim["user_id"], claim["upload_id"], object(), "w0", claim["attempts"], None)
+    assert seen["checked_out"] == 0
+    assert _status(factory, upload.id) == "failed"  # the (stubbed) pipeline failed, and that was recorded on a fresh connection
