@@ -6,6 +6,9 @@ How it works
     in memory, so a restart cannot lose queued work.
   * Every instance runs a few worker threads. A worker claims the oldest queued job with
     `SELECT ... FOR UPDATE SKIP LOCKED`, so any number of instances share one queue and never take the same job.
+  * While a job runs, its worker also holds a PostgreSQL advisory lock on a connection of its own. The lock is the
+    proof of life: a busy-but-alive worker keeps it however slow the machine is, and a crashed worker's connection
+    closes, which frees it at once. The reaper only recovers a job whose heartbeat is stale AND whose lock is free.
   * While a job runs, a heartbeat refreshes `heartbeat_at`. If a worker dies, the heartbeat goes stale and any
     instance's reaper puts the job back in the queue (up to JOB_MAX_ATTEMPTS attempts). A live job is never
     touched by another instance, because its heartbeat is fresh.
@@ -21,6 +24,7 @@ import threading
 import time
 from typing import Callable, Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.core import repository as repo
@@ -29,16 +33,66 @@ from backend.core.logging import log_event
 logger = logging.getLogger("finsight.jobs")
 
 
+class LivenessLock:
+    """Holds a session-level advisory lock for one job, on a dedicated connection, for as long as the job runs."""
+
+    def __init__(self, session_factory: Callable[[], Session], upload_id):
+        self._session_factory, self._upload_id = session_factory, upload_id
+        self._session: Optional[Session] = None
+
+    def __enter__(self) -> "LivenessLock":
+        try:
+            self._session = self._session_factory()
+            self._session.execute(text("SELECT pg_advisory_lock(hashtextextended('job:' || :id, 0))"), {"id": str(self._upload_id)})
+        except Exception:
+            # Without the lock the heartbeat alone still protects the job (the old behaviour), so keep going.
+            log_event(logger, logging.WARNING, "liveness_lock_unavailable", upload_id=str(self._upload_id), exc_info=True)
+            self._discard()
+        return self
+
+    def ping(self) -> None:
+        """A tiny query now and then keeps this otherwise idle connection from being dropped."""
+        if self._session is not None:
+            try:
+                self._session.execute(text("SELECT 1"))
+            except Exception:
+                log_event(logger, logging.WARNING, "liveness_connection_lost", upload_id=str(self._upload_id))
+
+    def _discard(self) -> None:
+        if self._session is not None:
+            try:
+                self._session.close()
+            except Exception:
+                pass
+            self._session = None
+
+    def __exit__(self, *exc) -> None:
+        if self._session is None:
+            return
+        try:
+            self._session.execute(text("SELECT pg_advisory_unlock(hashtextextended('job:' || :id, 0))"), {"id": str(self._upload_id)})
+            self._session.rollback()
+        except Exception:
+            try:
+                self._session.connection().invalidate()  # never hand a connection that may still hold the lock back to the pool
+            except Exception:
+                pass
+        self._discard()
+
+
 class Heartbeat:
     """Refreshes a running job's heartbeat from a background thread until stopped."""
 
-    def __init__(self, session_factory: Callable[[], Session], upload_id, worker_id: str, interval: float):
+    def __init__(self, session_factory: Callable[[], Session], upload_id, worker_id: str, interval: float, liveness: Optional[LivenessLock] = None):
         self._session_factory, self._upload_id, self._worker_id, self._interval = session_factory, upload_id, worker_id, interval
+        self._liveness = liveness
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="heartbeat", daemon=True)
 
     def _run(self) -> None:
         while not self._stop.wait(self._interval):
+            if self._liveness is not None:
+                self._liveness.ping()
             try:
                 with self._session_factory() as db:
                     if not repo.beat(db, self._upload_id, self._worker_id):
@@ -143,11 +197,12 @@ class JobRunner:
             if upload is None:
                 return False
             claim = {"user_id": upload.user_id, "upload_id": upload.id, "attempts": upload.attempts, "request_id": upload.request_id}
-        with Heartbeat(self.session_factory, claim["upload_id"], worker_id, self.heartbeat_seconds):
-            try:
-                self.process(self.session_factory, worker_id=worker_id, **claim)
-            except Exception:
-                log_event(logger, logging.ERROR, "job_crashed", upload_id=str(claim["upload_id"]), exc_info=True)
+        with LivenessLock(self.session_factory, claim["upload_id"]) as liveness:
+            with Heartbeat(self.session_factory, claim["upload_id"], worker_id, self.heartbeat_seconds, liveness):
+                try:
+                    self.process(self.session_factory, worker_id=worker_id, **claim)
+                except Exception:
+                    log_event(logger, logging.ERROR, "job_crashed", upload_id=str(claim["upload_id"]), exc_info=True)
         return True
 
     def drain(self, worker_id: Optional[str] = None) -> int:
