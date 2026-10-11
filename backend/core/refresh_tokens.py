@@ -54,7 +54,7 @@ def issue(db: Session, user_id: uuid.UUID, family_id: Optional[uuid.UUID] = None
 class Rotation:
     outcome: str  # ok | invalid | expired | race | reuse
     user_id: Optional[uuid.UUID] = None
-    new_token: Optional[str] = None
+    new_token: Optional[str] = None  # None with outcome "ok": the token is still fresh, so the browser keeps its cookie
     family_id: Optional[uuid.UUID] = None
 
 
@@ -92,6 +92,7 @@ def rotate(db: Session, raw: Optional[str]) -> Rotation:
     if row is None:
         return Rotation("invalid")
     now = _db_now(db)
+    came_through_chain = False
 
     if row.revoked_at is not None:
         if row.revoke_reason == "rotated":
@@ -104,7 +105,7 @@ def rotate(db: Session, raw: Optional[str]) -> Rotation:
                 if head is None:
                     db.rollback()
                     return Rotation("race", row.user_id, family_id=row.family_id)
-                row = head
+                row, came_through_chain = head, True  # the browser holds a stale cookie, so it must be given the new one
             else:
                 _revoke_family(db, row.family_id, "reuse", now)  # an old token came back: assume it was copied
                 db.commit()
@@ -117,6 +118,13 @@ def rotate(db: Session, raw: Optional[str]) -> Rotation:
         row.revoked_at, row.revoke_reason = now, "expired"
         db.commit()
         return Rotation("expired", row.user_id, family_id=row.family_id)
+
+    if not came_through_chain and now - row.created_at < timedelta(seconds=settings.refresh_rotate_after_seconds):
+        # Fresh enough: keep it. Swapping the cookie on every page load is what could lose it when a reload cut off the
+        # answer; swapping only once it is half a day old makes that a rare event instead of a routine one.
+        user_id, family_id = row.user_id, row.family_id
+        db.rollback()  # nothing to write; release the row lock
+        return Rotation("ok", user_id, None, family_id)
 
     new_raw = _new_secret()
     new_row = RefreshToken(

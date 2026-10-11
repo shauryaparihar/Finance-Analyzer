@@ -10,7 +10,7 @@ Render URL), so it tests the rewrite/proxy in front of the API too. It creates a
 
   1. the API answers through this address
   2. the refresh cookie is sent back to the browser (the proxy did not drop Set-Cookie) with the right flags
-  3. the cookie rotates and gives a working access token
+  3. refresh gives a working access token (the cookie is swapped once it is older than REFRESH_ROTATE_AFTER_SECONDS)
   4. a request claiming to come from an unknown website is refused
   5. (--check-replay) replaying an old cookie revokes the session
   6. logging out revokes the session and clears the cookie
@@ -107,12 +107,18 @@ def main() -> int:
 
         # 3. refresh rotates the cookie and issues a working access token
         first = client.cookies.get(COOKIE, path="/api/auth")
+        rotated = False
         refreshed = client.post("/api/auth/refresh", headers={**CSRF, "Origin": origin})
         if check("refresh works with the cookie", refreshed.status_code == 200, f"got {code(refreshed)}. If this is CSRF_REJECTED, add {origin} to FRONTEND_URL or EXTRA_FRONTEND_ORIGINS on the backend; if REFRESH_INVALID, the cookie was not sent back."):
             token = refreshed.json()["access_token"]
             check("the new access token works", client.get("/api/auth/me", headers={"Authorization": f"Bearer {token}"}).status_code == 200)
             second = client.cookies.get(COOKIE, path="/api/auth")
-            check("the cookie was rotated", bool(second) and second != first)
+            rotated = bool(second) and second != first
+            if rotated:
+                check("the cookie was rotated", True)
+            else:
+                # by design a cookie younger than REFRESH_ROTATE_AFTER_SECONDS (12 hours) is kept, so reloads cannot lose it
+                check("the cookie is still there (a fresh cookie is kept, not swapped, on purpose)", bool(second))
 
         # 4. a request from an unknown website is refused
         evil = client.post("/api/auth/refresh", headers={**CSRF, "Origin": "https://evil.example"})
@@ -120,7 +126,9 @@ def main() -> int:
         check("a request without the custom header is refused", client.post("/api/auth/refresh", headers={"Origin": origin}).status_code == 403)
 
         # 5. replay detection
-        if args.check_replay:
+        if args.check_replay and not rotated:
+            print("  SKIP  replay detection: the cookie is too fresh to be rotated (by design), so there is no old cookie to replay")
+        elif args.check_replay:
             old = client.cookies.get(COOKIE, path="/api/auth")
             client.post("/api/auth/refresh", headers={**CSRF, "Origin": origin})
             print("        (waiting 11 seconds for the replay window to close...)")
