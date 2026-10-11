@@ -127,7 +127,7 @@ function CompletedForecast({ f }: { f: ForecastCompleted }) {
           </table>
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          Tested by pretending to forecast {b.folds} earlier times ({b.forecast_days_scored} forecast days in all), always using only the past to predict the next {b.horizon_days} days. Errors are in the same units as your amounts.
+          Tested by pretending to forecast {b.folds} earlier times ({b.forecast_days_scored} forecast days in all), always using only the past to predict the next {b.horizon_days} days.{b.folds_available && b.folds_available > b.folds ? ` Your history allows ${b.folds_available} such tests; ${b.folds} of them, spread evenly across the whole history, were run to keep the analysis quick.` : ""} Errors are in the same units as your amounts.
           {b.horizon_days < f.forecast.days && ` This history is too short to test the full ${f.forecast.days} days, so the test used ${b.horizon_days}.`}
         </p>
       </Card>

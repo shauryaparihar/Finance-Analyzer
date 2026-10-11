@@ -152,7 +152,7 @@ def test_window_total_error_is_zero_for_a_perfect_forecast_and_correct_for_a_kno
     assert fc._window_total_error_pct(windows, off_by_ten_percent) == pytest.approx(10.0)
 
 
-def test_a_long_history_is_scored_on_the_most_recent_folds_only_so_the_cost_is_bounded():
+def test_a_long_history_is_scored_on_evenly_spread_windows_so_the_cost_is_bounded_but_every_year_counts():
     n = 1095  # three years of daily values
     values = np.abs(np.random.default_rng(0).normal(100, 20, n))
     dates = pd.date_range("2023-01-01", periods=n, freq="D")
@@ -160,6 +160,16 @@ def test_a_long_history_is_scored_on_the_most_recent_folds_only_so_the_cost_is_b
     all_folds = list(fc.rolling_origin_splits(n, fc.MIN_TRAIN_DAYS, result["horizon_days"], fc.BACKTEST_STEP_DAYS))
     assert result["folds"] == fc.MAX_FOLDS < len(all_folds) == result["folds_available"]
     assert result["forecast_days_scored"] == fc.MAX_FOLDS * result["horizon_days"]
+
+
+def test_selected_windows_cover_the_whole_history_in_order_without_repeats():
+    folds = [(56 + 7 * i, 87 + 7 * i) for i in range(145)]
+    chosen = fc.select_folds(folds, 24)
+    assert len(chosen) == 24 and chosen == sorted(set(chosen))
+    assert chosen[0] == folds[0] and chosen[-1] == folds[-1]  # earliest and latest windows both included
+    gaps = [b[0] - a[0] for a, b in zip(chosen, chosen[1:])]
+    assert max(gaps) - min(gaps) <= 7  # evenly spaced, give or take one week of rounding
+    assert fc.select_folds(folds[:10], 24) == folds[:10]  # short histories are untouched
 
 
 def test_a_short_history_is_not_affected_by_the_cap():

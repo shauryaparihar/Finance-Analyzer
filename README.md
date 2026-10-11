@@ -122,12 +122,12 @@ Details, numbers and limits are in [`docs/model_card.md`](docs/model_card.md). I
 | Stage (50,000 rows) | Median | p95 (slowest of 7) |
 |---|---|---|
 | CSV parse and validation | 0.015 s | 0.016 s |
-| Categorization (model inference) | 0.82 s | 0.83 s |
-| Forecast (backtest + fit) | 2.50 s | 2.53 s |
-| Unusual-transaction ranking | 0.034 s | 0.035 s |
-| Whole pipeline | 2.59 s | 2.61 s |
+| Categorization (model inference) | 0.89 s | 0.94 s |
+| Forecast (backtest + fit) | 2.24 s | 2.34 s |
+| Unusual-transaction ranking | 0.058 s | 0.077 s |
+| Whole pipeline | 2.35 s | 2.47 s |
 
-Not included: network time, login, database reads and writes, and the browser. The steps run side by side in threads, so the whole is less than the sum of the rows. The forecast re-trains a random forest once per backtest window; it now scores only the 12 most recent windows (before this cap the same file took 17.5 s for the forecast and 18.3 s overall, because the cost grew with the years of history). Files with less than about 12 windows of history, such as the sample files, are unaffected.
+Not included: network time, login, database reads and writes, and the browser. The steps run side by side in threads, so the whole is less than the sum of the rows. The forecast re-trains a random forest once per backtest window; it now scores at most 24 windows spread evenly across the whole history, with a 50-tree forest (before this the same file took 17.5 s for the forecast and 18.3 s overall, because the cost grew with the years of history). On the benchmark's three-year series, scoring 24 spread windows gave a model-vs-baseline gap of 27.3% against 27.9% for all 145 windows. Files with fewer windows than that, such as the sample files, are scored on every window.
 
 **On the free Render instance** (one run each, throwaway account, same 50,000-row file; no median or p95 claimed): *before* the cap the job took 511.6 s (forecast 480.6 s) and ended "failed" (probably a missed heartbeat on a very slow, shared CPU; the cause was not confirmed because server logs were not available). *After* the cap and the longer heartbeat limit (`JOB_STALE_AFTER_SECONDS=600` in `render.yaml`) the same upload finished with status "completed" in 163.2 s (categorization 22.8 s, forecast 68.4 s, unusual ranking 23.3 s, summary 1.3 s, plus 7 s to accept the upload; that run happened before the unusual-ranking speed-up above, which has not been re-measured live). The free server is roughly 20 to 30 times slower than the laptop on this job.
 

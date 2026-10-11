@@ -139,6 +139,7 @@ export interface ForecastCompleted {
   backtest: {
     horizon_days: number;
     folds: number;
+    folds_available?: number;
     forecast_days_scored: number;
     baseline: ErrorScores;
     model: ErrorScores;
