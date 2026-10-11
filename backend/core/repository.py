@@ -13,7 +13,18 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
-from backend.core.models import MODULES, AnalysisResult, AnalysisRun, Budget, Transaction, Upload, UploadInput, User
+from backend.core.models import (
+    MODULES,
+    AdminAudit,
+    AnalysisResult,
+    AnalysisRun,
+    Budget,
+    RefreshToken,
+    Transaction,
+    Upload,
+    UploadInput,
+    User,
+)
 from backend.utils.helpers import safe_json_serializable
 
 TERMINAL_UPLOAD_STATUSES = {"completed", "partial", "failed"}
@@ -669,16 +680,40 @@ def admin_overview(db: Session) -> dict:
 
 def admin_list_users(db: Session, limit: int = 200) -> list[dict]:
     counts = select(Upload.user_id, func.count().label("n")).group_by(Upload.user_id).subquery()
+    now = func.now()
+    sessions = (
+        select(
+            RefreshToken.user_id,
+            func.max(RefreshToken.created_at).label("last_active"),
+            # a person is "signed in" while at least one login session (token family) is neither revoked nor expired
+            func.bool_or(and_(RefreshToken.revoked_at.is_(None), RefreshToken.expires_at > now, RefreshToken.family_expires_at > now)).label("signed_in"),
+        )
+        .group_by(RefreshToken.user_id)
+        .subquery()
+    )
     rows = db.execute(
-        select(User, func.coalesce(counts.c.n, 0))
+        select(User, func.coalesce(counts.c.n, 0), sessions.c.last_active, func.coalesce(sessions.c.signed_in, False))
         .outerjoin(counts, counts.c.user_id == User.id)
+        .outerjoin(sessions, sessions.c.user_id == User.id)
         .order_by(User.created_at.desc())
         .limit(limit)
     ).all()
     return [
-        {"id": u.id, "email": u.email, "role": u.role, "is_active": u.is_active, "created_at": u.created_at, "upload_count": int(n)}
-        for u, n in rows
+        {
+            "id": u.id, "email": u.email, "role": u.role, "is_active": u.is_active, "created_at": u.created_at,
+            "upload_count": int(n), "last_active": last, "signed_in": bool(signed_in) and u.is_active,
+        }
+        for u, n, last, signed_in in rows
     ]
+
+
+def add_audit(db: Session, admin: User, action: str, target_email: Optional[str] = None, detail: Optional[str] = None) -> None:
+    db.add(AdminAudit(admin_id=admin.id, admin_email=admin.email, action=action, target_email=target_email, detail=detail))
+    db.commit()
+
+
+def list_audit(db: Session, limit: int = 100) -> list[AdminAudit]:
+    return list(db.scalars(select(AdminAudit).order_by(AdminAudit.created_at.desc()).limit(limit)))
 
 
 def set_user_active(db: Session, user_id: uuid.UUID, active: bool) -> Optional[User]:

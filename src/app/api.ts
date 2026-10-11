@@ -1,5 +1,5 @@
 import type {
-  AdminOverview, AdminUser, Anomalies, AmountConvention, ApiErrorBody, Budget, BudgetRisk, CategoryList, Forecast, Summary,
+  AdminOverview, AdminUser, Anomalies, AuditEntry, AmountConvention, ApiErrorBody, Budget, BudgetRisk, CategoryList, Forecast, Summary,
   TokenResponse, TransactionRow, TransactionsPage, UploadAccepted, UploadItem, UploadStatusResponse, User,
   Wrapped, ReviewStatus,
 } from "./types";
@@ -208,6 +208,7 @@ export const getMe = () => request<User>("/auth/me");
 
 // --- admin (administrator accounts only; counts and account details, never anyone's transactions) ---
 export const getAdminOverview = () => request<AdminOverview>("/admin/overview");
+export const listAudit = () => request<AuditEntry[]>("/admin/audit");
 export const listAdminUsers = () => request<AdminUser[]>("/admin/users");
 export const setUserActive = (id: string, isActive: boolean) =>
   request<AdminUser>(`/admin/users/${id}`, { method: "PATCH", json: { is_active: isActive } });

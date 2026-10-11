@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from backend.api.deps import get_admin_user
 from backend.api.errors import AppError
-from backend.api.schemas import AdminOverview, AdminUserOut, AdminUserUpdate
+from backend.api.schemas import AdminOverview, AdminUserOut, AdminUserUpdate, AuditEntry
 from backend.core import repository as repo
 from backend.core.database import get_db
 from backend.core.logging import log_event
@@ -33,6 +33,12 @@ def users(db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
     return repo.admin_list_users(db)
 
 
+@router.get("/audit", response_model=list[AuditEntry])
+def audit_log(db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
+    """What administrators changed, newest first."""
+    return repo.list_audit(db)
+
+
 @router.patch("/users/{user_id}", response_model=AdminUserOut)
 def update_user(user_id: uuid.UUID, body: AdminUserUpdate, db: Session = Depends(get_db), admin: User = Depends(get_admin_user)):
     """Disable or re-enable an account. A disabled account cannot log in or use an existing session."""
@@ -45,5 +51,6 @@ def update_user(user_id: uuid.UUID, body: AdminUserUpdate, db: Session = Depends
         raise AppError(409, "CANNOT_CHANGE_ADMIN", "Administrator accounts cannot be disabled here.")
     updated = repo.set_user_active(db, user_id, body.is_active)
     log_event(logger, logging.INFO, "admin_set_user_active", admin_id=str(admin.id), target_id=str(user_id), is_active=body.is_active)
+    repo.add_audit(db, admin, "account_enabled" if body.is_active else "account_disabled", target_email=target.email)
     row = next(u for u in repo.admin_list_users(db) if u["id"] == updated.id)
     return row

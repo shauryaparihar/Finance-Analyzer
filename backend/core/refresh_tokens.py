@@ -66,6 +66,25 @@ def _revoke_family(db: Session, family_id: uuid.UUID, reason: str, now: datetime
     )
 
 
+MAX_CHAIN_HOPS = 8
+
+
+def _follow_rotation_chain(db: Session, row: RefreshToken, now: datetime) -> Optional[RefreshToken]:
+    """From a recently rotated token, walk its replacements (each replaced within the grace window) to the live head.
+    Returns the locked head row, or None if the chain ends in something that is not usable (revoked, missing)."""
+    grace = timedelta(seconds=settings.refresh_grace_seconds)
+    current = row
+    for _ in range(MAX_CHAIN_HOPS):
+        if current.revoked_at is None:
+            return current
+        if current.revoke_reason != "rotated" or current.replaced_by_id is None or now - current.revoked_at > grace:
+            return None
+        current = db.scalar(select(RefreshToken).where(RefreshToken.id == current.replaced_by_id).with_for_update())
+        if current is None:
+            return None
+    return None
+
+
 def rotate(db: Session, raw: Optional[str]) -> Rotation:
     if not raw:
         return Rotation("invalid")
@@ -77,15 +96,22 @@ def rotate(db: Session, raw: Optional[str]) -> Rotation:
     if row.revoked_at is not None:
         if row.revoke_reason == "rotated":
             if now - row.revoked_at <= timedelta(seconds=settings.refresh_grace_seconds):
-                # Two tabs refreshed at the same moment: the loser holds the previous token. Not theft; the winner's
-                # new cookie is already in the browser, so the caller should simply try again.
-                db.rollback()
-                return Rotation("race", row.user_id, family_id=row.family_id)
-            _revoke_family(db, row.family_id, "reuse", now)  # an old token came back: assume it was copied
-            db.commit()
-            return Rotation("reuse", row.user_id, family_id=row.family_id)
-        db.rollback()
-        return Rotation("invalid", row.user_id, family_id=row.family_id)  # logged out, or already revoked as reuse
+                # A just-replaced token came back within the grace window. This is what a page reload looks like when
+                # the server's answer (carrying the new cookie) was cut off: the server rotated, the browser never
+                # received the new token and still holds the old one. Follow the chain of replacements to the newest
+                # live token and rotate that, so the person simply gets a fresh session instead of being logged out.
+                head = _follow_rotation_chain(db, row, now)
+                if head is None:
+                    db.rollback()
+                    return Rotation("race", row.user_id, family_id=row.family_id)
+                row = head
+            else:
+                _revoke_family(db, row.family_id, "reuse", now)  # an old token came back: assume it was copied
+                db.commit()
+                return Rotation("reuse", row.user_id, family_id=row.family_id)
+        else:
+            db.rollback()
+            return Rotation("invalid", row.user_id, family_id=row.family_id)  # logged out, or already revoked as reuse
 
     if row.expires_at <= now or row.family_expires_at <= now:
         row.revoked_at, row.revoke_reason = now, "expired"

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate } from "react-router";
-import { getAdminOverview, listAdminUsers, setUserActive, friendlyMessage } from "../../api";
+import { getAdminOverview, listAdminUsers, listAudit, setUserActive, friendlyMessage } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { useResource } from "../../hooks/useResource";
 import { dateTime } from "../../lib/format";
@@ -16,6 +16,7 @@ export function AdminPage() {
   const { user } = useAuth();
   const overview = useResource(() => getAdminOverview(), []);
   const users = useResource(() => listAdminUsers(), []);
+  const audit = useResource(() => listAudit(), []);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -28,6 +29,7 @@ export function AdminPage() {
       await setUserActive(account.id, !account.is_active);
       users.reload();
       overview.reload();
+      audit.reload();
     } catch (e) {
       setActionError(friendlyMessage(e));
     } finally {
@@ -59,7 +61,7 @@ export function AdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase text-muted-foreground">
-                <tr><th className="py-2">Email</th><th>Type</th><th>Analyses</th><th>Created</th><th>Status</th><th /></tr>
+                <tr><th className="py-2">Email</th><th>Type</th><th>Analyses</th><th>Created</th><th>Account</th><th>Signed in</th><th>Last active</th><th /></tr>
               </thead>
               <tbody>
                 {users.data.map((account) => (
@@ -68,7 +70,9 @@ export function AdminPage() {
                     <td><Pill tone="neutral">{account.role}</Pill></td>
                     <td className="font-mono">{account.upload_count}</td>
                     <td className="whitespace-nowrap text-muted-foreground">{dateTime(account.created_at)}</td>
-                    <td><Pill tone={account.is_active ? "good" : "bad"}>{account.is_active ? "Active" : "Disabled"}</Pill></td>
+                    <td title="Whether this account is allowed to sign in. Disabled accounts cannot."><Pill tone={account.is_active ? "good" : "bad"}>{account.is_active ? "Enabled" : "Disabled"}</Pill></td>
+                    <td title="Whether the person has a live login session right now."><Pill tone={account.signed_in ? "info" : "neutral"}>{account.signed_in ? "Signed in" : "Signed out"}</Pill></td>
+                    <td className="whitespace-nowrap text-muted-foreground">{account.last_active ? dateTime(account.last_active) : "never"}</td>
                     <td className="text-right">
                       {account.role !== "admin" && (
                         <Button variant="outline" size="sm" disabled={busyId === account.id} onClick={() => void toggle(account)}>
@@ -81,6 +85,24 @@ export function AdminPage() {
               </tbody>
             </table>
           </div>
+        </Card>
+      )}
+
+      {audit.error !== null ? <ErrorNotice error={audit.error} onRetry={audit.reload} /> : !audit.data ? null : (
+        <Card>
+          <SectionTitle>Administrator activity</SectionTitle>
+          {audit.data.length === 0 ? <p className="text-sm text-muted-foreground">No changes have been made yet.</p> : (
+            <ul className="divide-y divide-border text-sm">
+              {audit.data.map((entry) => (
+                <li key={entry.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2">
+                  <span className="text-foreground">
+                    {entry.admin_email} <span className="text-muted-foreground">{entry.action === "account_disabled" ? "disabled" : entry.action === "account_enabled" ? "enabled" : entry.action}</span> {entry.target_email}
+                  </span>
+                  <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">{dateTime(entry.created_at)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Card>
       )}
     </div>

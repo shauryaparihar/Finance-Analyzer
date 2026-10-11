@@ -18,6 +18,8 @@ services:
         value: https://finance-analyzer-nu.vercel.app
       - key: JOB_STALE_AFTER_SECONDS  # back to the default: a crashed worker is noticed after a minute
         value: "60"
+      - key: ANALYSIS_WORKERS  # one analysis at a time: two large ones together could exceed the free plan's 512 MB
+        value: "1"
       - key: GOOGLE_CLIENT_ID  # from Google Cloud Console (see docs/deployment.md); leave empty to hide the Google button
         sync: false
       - key: GOOGLE_CLIENT_SECRET
@@ -25,6 +27,8 @@ services:
       - key: MAIL_BACKEND  # off | resend; see docs/deployment.md
         value: "off"
       - key: RESEND_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
         sync: false
       - key: MAIL_FROM
         sync: false

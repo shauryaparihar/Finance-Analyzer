@@ -167,6 +167,8 @@ class AdminUserOut(BaseModel):
     is_active: bool
     created_at: datetime
     upload_count: int
+    signed_in: bool = False
+    last_active: Optional[datetime] = None
 
 
 class AdminUserUpdate(BaseModel):
@@ -181,3 +183,12 @@ class AdminOverview(BaseModel):
     uploads_by_status: dict[str, int]
     uploads_last_7_days: int
     note: str
+
+
+class AuditEntry(BaseModel):
+    id: uuid.UUID
+    admin_email: str
+    action: str
+    target_email: Optional[str] = None
+    detail: Optional[str] = None
+    created_at: datetime

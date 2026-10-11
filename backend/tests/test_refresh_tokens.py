@@ -145,14 +145,42 @@ def test_replaying_an_old_token_revokes_the_whole_session(client, session, db):
     assert _refresh(client, cookie=legitimate_next).status_code == 401  # the real user's newest token died too
 
 
-def test_a_second_tab_refreshing_at_the_same_moment_is_a_retryable_race_not_theft(client, session, db):
-    previous = _cookie(client)
+def test_a_token_that_was_just_replaced_still_gets_a_fresh_session_when_the_answer_was_lost(client, session, db):
+    """A reload cut off the server's answer, so the browser still holds the old cookie. Not theft, not a logout."""
+    lost = _cookie(client)
+    assert _refresh(client).status_code == 200  # the server rotated, but pretend the browser never got the new cookie
+    again = _refresh(client, cookie=lost)  # the reloaded page presents the old cookie again, within the grace window
+    assert again.status_code == 200 and again.json()["access_token"]
+    new_cookie = _set_cookie_header(again).split(";")[0].split("=", 1)[1]
+    assert new_cookie and new_cookie != lost
+    assert _refresh(client, cookie=new_cookie).status_code == 200  # and the new cookie carries on normally
+
+
+def test_several_lost_answers_in_a_row_are_survived(client, session, db):
+    """Three quick reloads on a slow connection: every answer is lost, every request carries the same old cookie."""
+    lost = _cookie(client)
+    for _ in range(4):
+        assert _refresh(client, cookie=lost).status_code == 200
+    live = db.scalar(select(func.count()).select_from(RefreshToken).where(RefreshToken.revoked_at.is_(None)))
+    assert live == 1  # only the newest token in the chain is alive
+
+
+def test_the_old_cookie_is_still_treated_as_theft_once_the_grace_window_has_passed(client, session, db):
+    lost = _cookie(client)
     assert _refresh(client).status_code == 200
-    newest = _cookie(client)
-    response = _refresh(client, cookie=previous)  # arrives within the grace window
-    assert response.status_code == 401 and response.json()["error"]["code"] == "REFRESH_RACE"
-    assert "set-cookie" not in {k.lower() for k in response.headers.keys()}  # the winner's new cookie is left alone
-    assert _refresh(client, cookie=newest).status_code == 200  # the session is intact
+    db.execute(update(RefreshToken).where(RefreshToken.revoke_reason == "rotated").values(revoked_at=func.now() - timedelta(minutes=5)))
+    db.commit()
+    again = _refresh(client, cookie=lost)
+    assert again.status_code == 401 and again.json()["error"]["code"] == "REFRESH_REUSED"
+    assert db.scalar(select(func.count()).select_from(RefreshToken).where(RefreshToken.revoked_at.is_(None))) == 0
+
+
+def test_a_logged_out_session_cannot_be_revived_through_the_grace_window(client, session, db):
+    lost = _cookie(client)
+    assert _refresh(client).status_code == 200
+    assert client.post("/api/auth/logout", headers=CSRF).status_code == 204  # the newest token is revoked by logout
+    revived = _refresh(client, cookie=lost)
+    assert revived.status_code == 401 and revived.json()["error"]["code"] == "REFRESH_RACE"
 
 
 def test_a_logged_out_token_cannot_be_used_again(client, session):

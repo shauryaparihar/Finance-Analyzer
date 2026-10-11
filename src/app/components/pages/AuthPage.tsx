@@ -73,6 +73,11 @@ export function AuthPage({ mode }: { mode: "login" | "register" }) {
           {googleFailed && <Notice tone="warn">Google sign-in did not complete. Please try again, or use your email and password.</Notice>}
           {formError !== null && <ErrorNotice error={formError} />}
         </AuthForm>
+        {isLogin && providers?.google && (
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            Used “Continue with Google” before? That account has no FinSight password (your Google password is never shared with us). Keep using Google{providers?.email ? ", or choose a FinSight password with “Forgot your password?”" : ""}.
+          </p>
+        )}
         {isLogin && providers?.email && (
           <p className="mt-3 text-center text-sm"><Link to="/forgot-password" className="text-primary underline-offset-4 hover:underline">Forgot your password?</Link></p>
         )}
