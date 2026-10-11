@@ -678,6 +678,14 @@ def admin_overview(db: Session) -> dict:
     }
 
 
+def sign_in_method(user: User) -> str:
+    """How this account can be opened: with a password, with Google, or both (a Google account that later chose a password)."""
+    has_password = user.password_hash != UNUSABLE_PASSWORD_HASH
+    if user.google_sub:
+        return "google+password" if has_password else "google"
+    return "password"
+
+
 def admin_list_users(db: Session, limit: int = 200) -> list[dict]:
     counts = select(Upload.user_id, func.count().label("n")).group_by(Upload.user_id).subquery()
     now = func.now()
@@ -702,6 +710,7 @@ def admin_list_users(db: Session, limit: int = 200) -> list[dict]:
         {
             "id": u.id, "email": u.email, "role": u.role, "is_active": u.is_active, "created_at": u.created_at,
             "upload_count": int(n), "last_active": last, "signed_in": bool(signed_in) and u.is_active,
+            "sign_in_method": sign_in_method(u),
         }
         for u, n, last, signed_in in rows
     ]

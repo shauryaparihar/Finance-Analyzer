@@ -61,13 +61,14 @@ export function AdminPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
               <thead className="text-xs uppercase text-muted-foreground">
-                <tr><th className="py-2">Email</th><th>Type</th><th>Analyses</th><th>Created</th><th>Account</th><th>Signed in</th><th>Last active</th><th /></tr>
+                <tr><th className="py-2">Email</th><th>Type</th><th>Sign-in</th><th>Analyses</th><th>Created</th><th>Account</th><th>Signed in</th><th>Last active</th><th /></tr>
               </thead>
               <tbody>
                 {users.data.map((account) => (
                   <tr key={account.id} className="border-t border-border">
                     <td className="max-w-[16rem] truncate py-3 text-foreground" title={account.email}>{account.email}</td>
                     <td><Pill tone="neutral">{account.role}</Pill></td>
+                    <td className="whitespace-nowrap text-muted-foreground" title="How this account can be opened. Google means the address was proven by Google; Password means it was typed in and not checked.">{{ password: "Password", google: "Google", "google+password": "Google + password" }[account.sign_in_method]}</td>
                     <td className="font-mono">{account.upload_count}</td>
                     <td className="whitespace-nowrap text-muted-foreground">{dateTime(account.created_at)}</td>
                     <td title="Whether this account is allowed to sign in. Disabled accounts cannot."><Pill tone={account.is_active ? "good" : "bad"}>{account.is_active ? "Enabled" : "Disabled"}</Pill></td>

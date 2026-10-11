@@ -5,6 +5,7 @@ from backend.api.auth import CSRF_HEADER
 from backend.core import repository as repo
 from backend.core.config import settings
 from backend.core.models import User
+from backend.core.security import hash_password
 from backend.tests.conftest import csv_file, register_and_login
 
 CSRF = {CSRF_HEADER: "1"}
@@ -101,7 +102,7 @@ def test_an_admin_sees_counts_and_accounts_but_never_other_peoples_data(client, 
     assert overview["uploads_total"] == 1 and overview["uploads_last_7_days"] == 1
     users = {u["email"]: u for u in client.get("/api/admin/users", headers=admin).json()}
     assert users["someone@example.com"]["upload_count"] == 1
-    assert set(users["someone@example.com"]) == {"id", "email", "role", "is_active", "created_at", "upload_count", "signed_in", "last_active"}  # account facts only, no financial fields
+    assert set(users["someone@example.com"]) == {"id", "email", "role", "is_active", "created_at", "upload_count", "signed_in", "last_active", "sign_in_method"}  # account facts only, no financial fields
     # the admin is still just another user as far as someone else's analysis is concerned
     for path in ("", "/summary", "/transactions", "/anomalies"):
         assert client.get(f"/api/uploads/{upload_id}{path}", headers=admin).status_code == 404
@@ -169,3 +170,19 @@ def test_a_refused_admin_change_leaves_no_audit_entry(client, db):
     me = repo.get_user_by_email(db, "boss@example.com").id
     assert client.patch(f"/api/admin/users/{me}", headers=admin, json={"is_active": False}).status_code == 409
     assert client.get("/api/admin/audit", headers=admin).json() == []
+
+
+def test_the_account_list_says_how_each_account_can_be_opened(client, db):
+    admin = register_and_login(client, "boss@example.com")
+    _make_admin(db, "boss@example.com")
+    register_and_login(client, "typed@example.com")
+    repo.resolve_google_user(db, "sub-google-only", "google-only@example.com")
+    register_and_login(client, "linked@example.com")
+    repo.resolve_google_user(db, "sub-linked", "linked@example.com")
+    linked = repo.get_user_by_email(db, "linked@example.com")
+    linked.password_hash = hash_password("a-password-chosen-later")  # chose one later through "Forgot your password?"
+    db.commit()
+    rows = {u["email"]: u["sign_in_method"] for u in client.get("/api/admin/users", headers=admin).json()}
+    assert rows["typed@example.com"] == "password"
+    assert rows["google-only@example.com"] == "google"
+    assert rows["linked@example.com"] == "google+password"
