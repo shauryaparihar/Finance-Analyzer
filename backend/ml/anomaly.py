@@ -138,10 +138,12 @@ def rank_unusual(
     # The score is capped (MAX_Z), so ties among extreme rows are broken by the uncapped deviation, then the amount.
     order = eligible.sort_values(["anomaly_score", "z", "amount"], ascending=[False, False, False]).head(capacity)
     scored["anomaly_rank"] = pd.Series(range(1, len(order) + 1), index=order.index)
-    scored["anomaly_reason"] = [
-        _reason(r.amount, r.typical, r.scope) if pd.notna(scored.at[i, "anomaly_rank"]) else None
-        for i, r in scored.iterrows()
-    ]
+    # Only the few ranked rows get a sentence; building one for every row of a 50,000-row file was most of the cost.
+    reasons = pd.Series([None] * len(scored), index=scored.index, dtype=object)
+    for i in order.index:
+        row = scored.loc[i]
+        reasons.at[i] = _reason(row["amount"], row["typical"], row["scope"])
+    scored["anomaly_reason"] = reasons
     return scored[["anomaly_score", "anomaly_rank", "anomaly_reason"]]
 
 
